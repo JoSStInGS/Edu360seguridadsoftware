@@ -1,0 +1,66 @@
+# ===================================
+# Next.js / Node.js
+# ===================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.next/
+out/
+dist/
+build/
+.cache/
+.vercel/
+coverage/
+*.log
+
+# Editor settings
+.vscode/
+.idea/
+.DS_Store
+
+# ===================================
+# Android / Android Studio
+# ===================================
+*.iml
+.gradle/
+local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build/
+/captures
+.externalNativeBuild
+.cxx
+.gradle
+/local.properties
+
+# Keystore files (do not share!)
+*.jks
+*.keystore
+
+# Android Studio generated files
+.idea/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.jar
+*.war
+*.ear
+*.db
+
+# Generated files
+gen/
+out/
