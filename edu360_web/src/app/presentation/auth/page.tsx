@@ -1,5 +1,17 @@
 'use client'
+
+
+import {signInWithMicrosoft} from "@/app/presentation/auth/services/auth";
+
 export default function LoginPage() {
+    const handleMicrosoftLogin = async () => {
+        try {
+            await signInWithMicrosoft();
+        } catch (error: any) {
+            alert(error.message ?? "Error al iniciar sesión con Microsoft");
+        }
+    };
+
     return (
         <div className="bg-[var(--bg-color)] flex items-center justify-center min-h-screen">
             <div className="bg-[var(--container-bg)] rounded-2xl shadow-xl p-12 w-full max-w-md border border-gray-200">
@@ -45,6 +57,29 @@ export default function LoginPage() {
                             className="w-full bg-[var(--button-bg)] text-[var(--button-text)] font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-all duration-300 ease-in-out transform hover:scale-105"
                         >
                             Iniciar sesión
+                        </button>
+                    </div>
+
+                    {/* Separador */}
+                    <div className="flex items-center justify-center my-6">
+                        <div className="border-t border-gray-300 flex-grow"></div>
+                        <span className="px-4 text-sm text-gray-500">o</span>
+                        <div className="border-t border-gray-300 flex-grow"></div>
+                    </div>
+
+                    {/* Botón Microsoft */}
+                    <div className="mb-6">
+                        <button
+                            type="button"
+                            onClick={handleMicrosoftLogin}
+                            className="w-full flex items-center justify-center gap-3 border border-gray-300 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:bg-gray-50 transition-all duration-300 ease-in-out"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg"
+                                alt="Microsoft"
+                                className="w-5 h-5"
+                            />
+                            Iniciar sesión con Microsoft
                         </button>
                     </div>
 
