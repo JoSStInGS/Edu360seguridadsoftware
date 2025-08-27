@@ -5,11 +5,15 @@
     --foreground: #171717;
     --bg-color: #f9f9f9;
     --container-bg: #ffffff;
-    --text-color: #2c3e50;
     --button-bg: #3498db;
     --button-text: #ffffff;
     --link-color: #2980b9;
     --placeholder-color: #7f8c8d;
+    --brand-blue: #1E3A8A;
+    --brand-green: #16A34A;
+    --light-gray: #f8f9fb;
+    --dark-gray: #6b7280;
+    --text-color: #111827;
 }
 
 @theme inline {
