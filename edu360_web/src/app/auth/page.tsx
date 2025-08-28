@@ -1,14 +1,34 @@
 'use client'
 
 
-import {signInWithMicrosoft} from "@/app/auth/services/auth";
+import { signInWithMicrosoft } from "@/app/auth/services/auth";
+import { useAuth } from "@/app/auth/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
+    const { user } = useAuth();
+    const router = useRouter();
+    const [signingIn, setSigningIn] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            router.replace("/welcome");
+        }
+    }, [user, router]);
+
     const handleMicrosoftLogin = async () => {
+        setSigningIn(true);
         try {
-            await signInWithMicrosoft();
-        } catch (error: any) {
-            alert(error.message ?? "Error al iniciar sesión con Microsoft");
+            const u = await signInWithMicrosoft();
+            if (u) {
+                router.push("/welcome");
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Error al iniciar sesión con Microsoft";
+            alert(message);
+        } finally {
+            setSigningIn(false);
         }
     };
 
@@ -63,11 +83,15 @@ export default function LoginPage() {
                         <div className="mt-10 flex flex-col items-center gap-4">
                             <button
                                 onClick={handleMicrosoftLogin}
-                                className="flex items-center justify-center gap-3 rounded-lg bg-[#0078D4] px-6 py-3 text-lg font-semibold text-white shadow-sm transition-transform hover:scale-105 hover:bg-[#005a9e]">
-                                <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                    <path
-                                        d="M11.5 22.5H2.5V13.5H11.5V22.5ZM21.5 11.5H12.5V2.5H21.5V11.5ZM11.5 11.5H2.5V2.5H11.5V11.5ZM21.5 22.5H12.5V13.5H21.5V22.5Z"></path>
-                                </svg>
+                                disabled={signingIn}
+                                className="flex items-center justify-center gap-3 rounded-lg bg-[#0078D4] px-6 py-3 text-lg font-semibold text-white shadow-sm transition-transform hover:scale-105 hover:bg-[#005a9e] disabled:cursor-not-allowed disabled:opacity-60">
+                                {signingIn ? (
+                                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                                ) : (
+                                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M11.5 22.5H2.5V13.5H11.5V22.5ZM21.5 11.5H12.5V2.5H21.5V11.5ZM11.5 11.5H2.5V2.5H11.5V11.5ZM21.5 22.5H12.5V13.5H21.5V22.5Z"></path>
+                                    </svg>
+                                )}
                                 Acceder con cuenta Microsoft del MEP
                             </button>
                             <p className="text-sm text-[var(--dark-gray)]">
