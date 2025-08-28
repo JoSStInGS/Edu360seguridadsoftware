@@ -111,9 +111,22 @@ export default function LoginPage() {
         </form>
         <div className="mt-6 flex flex-col gap-4">
           <button
+            onClick={handleGoogleLogin}
+            disabled={loadingGoogle}
+            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-60"
+          >
+            {loadingGoogle ? 'Cargando...' : (
+              <span className="flex items-center gap-2 text-sm font-medium">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-5 w-5" />
+                Iniciar con Google
+              </span>
+            )}
+          </button>
+          <button
             onClick={handleMicrosoftLogin}
             disabled={loadingMicrosoft}
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-60"
           >
             {loadingMicrosoft ? 'Cargando...' : (
               <span className="flex items-center gap-2 text-sm font-medium">
@@ -121,19 +134,6 @@ export default function LoginPage() {
                   <path d="M11.5 22.5H2.5V13.5H11.5V22.5ZM21.5 11.5H12.5V2.5H21.5V11.5ZM11.5 11.5H2.5V2.5H11.5V11.5ZM21.5 22.5H12.5V13.5H21.5V22.5Z" />
                 </svg>
                 Iniciar con Microsoft
-              </span>
-            )}
-          </button>
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loadingGoogle}
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 disabled:opacity-60"
-          >
-            {loadingGoogle ? 'Cargando...' : (
-              <span className="flex items-center gap-2 text-sm font-medium">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-5 w-5" />
-                Iniciar con Google
               </span>
             )}
           </button>
