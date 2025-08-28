@@ -1,6 +1,7 @@
 import {
     auth,
     microsoftProvider,
+    googleProvider,
     db,
 } from "@/app/lib/firebase";
 import {
@@ -9,6 +10,8 @@ import {
     getRedirectResult,
     signOut,
     OAuthProvider,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
     User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -38,6 +41,41 @@ export async function signInWithMicrosoft(): Promise<User | null> {
         // Re-throw other errors
         throw err;
     }
+}
+
+/**
+ * Initiates Google login using a popup or redirect as fallback.
+ */
+export async function signInWithGoogle(): Promise<User | null> {
+    try {
+        const result = await signInWithPopup(auth, googleProvider);
+        await saveUserIfFirstTime(result.user);
+        return result.user;
+    } catch (err: unknown) {
+        if (typeof err === "object" && err && (err as { code?: string }).code === "auth/popup-blocked") {
+            await signInWithRedirect(auth, googleProvider);
+            return null;
+        }
+        throw err;
+    }
+}
+
+/**
+ * Logs in using email and password credentials.
+ */
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await saveUserIfFirstTime(cred.user);
+    return cred.user;
+}
+
+/**
+ * Registers a new user with email and password.
+ */
+export async function registerWithEmail(email: string, password: string): Promise<User> {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await saveUserIfFirstTime(cred.user);
+    return cred.user;
 }
 
 /**
