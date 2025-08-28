@@ -5,6 +5,7 @@ import {
     browserLocalPersistence,
     OAuthProvider,
 } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 /**
  * Firebase configuration retrieved from environment variables.
@@ -33,6 +34,11 @@ const app = initializeApp(firebaseConfig);
  * @type {import("firebase/auth").Auth}
  */
 export const auth = getAuth(app);
+
+/**
+ * Firestore database instance used for storing application data.
+ */
+export const db = getFirestore(app);
 
 /**
  * Sets the persistence type for the authentication session in the browser.
