@@ -4,6 +4,7 @@ import {
     setPersistence,
     browserLocalPersistence,
     OAuthProvider,
+    GoogleAuthProvider,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -51,6 +52,11 @@ void setPersistence(auth, browserLocalPersistence);
  * @type {import("firebase/auth").OAuthProvider}
  */
 export const microsoftProvider = new OAuthProvider("microsoft.com");
+
+/**
+ * Google OAuth provider for authentication (Gmail accounts).
+ */
+export const googleProvider = new GoogleAuthProvider();
 
 /**
  * Adds additional permissions to the Microsoft provider.
