@@ -21,14 +21,6 @@ export default function Home() {
       <main className="flex-grow md:flex md:items-center md:justify-center md:py-0">
         <section className="mx-auto w-full max-w-screen-xl px-6 py-16 text-center md:py-0">
           <div className="mx-auto max-w-4xl">
-            <div className="mb-8 md:mb-6">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                alt="Abstract illustration representing education, teachers, and technology"
-                className="mx-auto w-full max-w-md rounded-lg"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAeCxF8Lgnm2Rjys_A2hxt5LIinfGLo1V49b2WKhR-Nx6m6RMuAFEckeSjH9L5yyG8oyOqTbgZEEkOkAOaiOLmK0f50t7siYLdNFgk-DoBGJN9lT5PwjV6Vgw_uHvTHTXNCqr1iMktZam0KilP3G5ijncBYuuL403gRpZBhnVX2bx_rxmQzDZWNnpX9VN6rArvK-OFJ6Q8cfAMbKr9PZlHN17K7KINkKhwtjY_OPIJptxaaTFw6POk-d5Z1kBH7lxVSeqid0QBS7Y"
-              />
-            </div>
             <h1 className="text-4xl font-bold tracking-tight text-[var(--text-color)] sm:text-5xl md:text-6xl">
               Welcome to <span className="text-[var(--brand-blue)]">Edu360</span>
             </h1>
