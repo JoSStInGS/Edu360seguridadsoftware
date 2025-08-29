@@ -10,16 +10,31 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
+
+    const requirements: string[] = []
+    if (password.length < 9) requirements.push('La contraseña debe tener al menos 9 caracteres')
+    if (!/[A-Z]/.test(password)) requirements.push('Falta una letra mayúscula')
+    if (!/[a-z]/.test(password)) requirements.push('Falta una letra minúscula')
+    if (!/\d/.test(password)) requirements.push('Falta un número')
+
+    if (requirements.length > 0) {
+      setError(requirements.join('. '))
+      setLoading(false)
+      return
+    }
+
     try {
       await registerWithEmail(email, password)
       router.push('/welcome')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al crear la cuenta'
-      alert(message)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -56,6 +71,7 @@ export default function RegisterPage() {
               className="w-full px-4 py-3 bg-transparent border-b-2 border-[var(--text-color)] text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none focus:border-[var(--button-bg)] transition-colors"
             />
           </div>
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           <button
             type="submit"
             disabled={loading}
