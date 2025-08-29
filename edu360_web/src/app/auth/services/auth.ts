@@ -73,6 +73,13 @@ export async function signInWithEmail(email: string, password: string): Promise<
  * Registers a new user with email and password.
  */
 export async function registerWithEmail(email: string, password: string): Promise<User> {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/;
+    if (!passwordRegex.test(password)) {
+        throw new Error(
+            "La contraseña debe ser mayor a 8 caracteres y contener al menos un número, una letra mayúscula y una letra minúscula."
+        );
+    }
+
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await saveUserIfFirstTime(cred.user);
     return cred.user;
@@ -107,6 +114,6 @@ export async function saveUserIfFirstTime(user: User): Promise<void> {
     const ref = doc(db, "users", user.uid);
     const snapshot = await getDoc(ref);
     if (!snapshot.exists()) {
-        await setDoc(ref, { email: user.email });
+        await setDoc(ref, { email: user.email, role: "profesor" });
     }
 }
