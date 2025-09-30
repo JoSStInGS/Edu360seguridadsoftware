@@ -11,9 +11,7 @@ const NAV_ITEMS = [
   { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
   { label: "Grupos/Secciones", icon: "groups", href: "#" },
   { label: "Asistencia", icon: "event_available", href: "#" },
-  { label: "Importar (PIAD)", icon: "upload", href: "#" },
   { label: "Reportes", icon: "monitoring", href: "#" },
-  { label: "Auditoría", icon: "policy", href: "#" },
   { label: "Configuración", icon: "settings", href: "#" },
 ];
 
@@ -59,7 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             const isActive =
               item.href !== "#" && (pathname === item.href || pathname.startsWith(`${item.href}/`));
 
-            const baseClasses = "flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors";
+            const baseClasses = "flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs";
             const activeClasses = isActive
               ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
               : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]";
@@ -141,11 +139,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       )}
       <div className="flex min-h-screen bg-[var(--background-light)] text-[var(--foreground-light)] dark:bg-[var(--background-dark)] dark:text-[var(--foreground-dark)]">
         <aside
-          className={`hidden ${isDesktopSidebarVisible ? "lg:flex" : "lg:hidden"} w-64 flex-shrink-0 flex-col justify-between border-r border-[var(--border-light)] bg-[var(--card-light)] p-6 dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]`}
+          className={`hidden ${isDesktopSidebarVisible ? "lg:flex" : "lg:hidden"
+            } fixed inset-y-0 left-0 w-64 flex-col justify-between border-r border-[var(--border-light)] bg-[var(--card-light)] p-6 dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]`}
         >
           {renderSidebarContent()}
         </aside>
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col lg:ml-64">
           <header className="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-[var(--border-light)] bg-[rgba(246,246,248,0.85)] px-4 sm:px-6 lg:px-8 backdrop-blur-sm dark:border-[var(--border-dark)] dark:bg-[rgba(17,21,33,0.85)]">
             <div className="flex items-center gap-3 sm:gap-4 lg:gap-6">
               <button
