@@ -3,13 +3,15 @@ import Link from "next/link";
 export default function ImportStudentsPage() {
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <div className="mb-8 flex flex-col gap-2">
-        <Link href="/dashboard/students" className="flex items-center gap-2 text-sm font-medium text-[var(--primary)] hover:underline">
-          <span className="material-symbols-outlined text-base">arrow_back</span>
-          Volver a estudiantes
-        </Link>
-        <h2 className="text-3xl font-bold">Asistente de Importación de Estudiantes</h2>
-        <p className="text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+      <div className="mb-6 flex flex-col gap-2">
+        <div className="flex text-[var(--primary)]">
+          <span className="material-symbols-outlined mr-1">arrow_back</span>
+          <Link href="/dashboard/students" className="flex items-center gap-2 text-sm font-medium hover:underline">
+            Volver a estudiantes
+          </Link>
+        </div>
+        <h2 className="text-2xl 2xl:text-3xl font-bold">Asistente de Importación de Estudiantes</h2>
+        <p className="text-lg 2xl:text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
           Siga los pasos para importar sus estudiantes desde un archivo Excel o CSV.
         </p>
       </div>
@@ -41,8 +43,8 @@ export default function ImportStudentsPage() {
             <div>
               <label className="block text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">Año lectivo</label>
               <select className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-                <option>2024-2025</option>
-                <option>2023-2024</option>
+                <option>2025</option>
+                <option>2024</option>
               </select>
             </div>
             <div>

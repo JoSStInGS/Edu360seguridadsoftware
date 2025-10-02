@@ -21,7 +21,7 @@ export default function StudentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 xl:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold">Estudiantes</h2>
         <div className="flex flex-wrap items-center gap-4">
           <Link
@@ -37,26 +37,31 @@ export default function StudentsPage() {
           </button>
         </div>
       </div>
-
-      <div className="mb-8 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-6 xl:mb-8 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {["Año lectivo", "Nivel", "Grupo", "Especialidad", "Estado"].map((label) => (
             <div key={label}>
-              <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{label}</label>
+              <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                {label}
+              </label>
               <select className="mt-1 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
                 <option>Todos</option>
               </select>
             </div>
           ))}
-          <div className="relative self-end">
-            <input
-              type="search"
-              placeholder="Buscar por nombre o ID"
-              className="h-10 w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-            />
-            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">search</span>
-          </div>
         </div>
+
+        <div className="relative mt-6">
+          <input
+            type="search"
+            placeholder="Buscar por nombre o ID"
+            className="h-10 w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+          />
+          <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+            search
+          </span>
+        </div>
+
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
@@ -134,13 +139,12 @@ export default function StudentsPage() {
                 ].map((item) => (
                   <button
                     key={item.label ?? item.icon}
-                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${
-                      item.isActive
-                        ? "bg-[var(--primary)] text-white"
-                        : item.disabled
+                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${item.isActive
+                      ? "bg-[var(--primary)] text-white"
+                      : item.disabled
                         ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
                         : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
-                    }`}
+                      }`}
                     disabled={item.disabled}
                   >
                     {item.icon ? <span className="material-symbols-outlined text-lg">{item.icon}</span> : item.label}

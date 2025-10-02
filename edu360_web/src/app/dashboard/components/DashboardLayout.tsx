@@ -145,7 +145,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {renderSidebarContent()}
         </aside>
         <div className="flex flex-1 flex-col lg:ml-64">
-          <main className="flex-1 overflow-y-auto bg-[var(--background-light)] p-6 sm:p-8 dark:bg-[var(--background-dark)]">
+          <main className="flex-1 overflow-y-auto bg-[var(--background-light)] p-6 2xl:p-8 dark:bg-[var(--background-dark)]">
             {children}
           </main>
         </div>
