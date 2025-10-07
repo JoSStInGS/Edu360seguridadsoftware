@@ -4,6 +4,35 @@ import Link from "next/link";
 import { ChangeEvent, useRef, useState } from "react";
 import CustomSelect from "@/app/components/CustomSelect";
 
+type SheetJsModule = {
+  read: (
+    data: ArrayBuffer | Uint8Array,
+    options: { type: "array" | "binary" | "buffer" | "file" | "string" },
+  ) => {
+    SheetNames: string[];
+    Sheets: Record<string, unknown>;
+  };
+  utils: {
+    sheet_to_json: <T = unknown[]>(
+      worksheet: unknown,
+      options: { header: 1; raw: boolean; defval: string },
+    ) => T;
+  };
+};
+
+type SheetJsRow = Array<string | number | boolean | Date | null | undefined>;
+
+declare global {
+  interface Window {
+    XLSX?: SheetJsModule;
+  }
+}
+
+type ParsedTable = {
+  headerRow: string[];
+  dataRows: string[][];
+};
+
 type FieldMapping = {
   label: string;
   required?: boolean;
@@ -46,6 +75,8 @@ const FIELD_MAPPINGS: FieldMapping[] = [
 
 const PLACEHOLDER_ROWS = [0, 1];
 const COLUMN_PLACEHOLDER = "Selecciona una columna";
+
+let sheetJsLoader: Promise<SheetJsModule> | null = null;
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) {
@@ -105,6 +136,37 @@ function parseDelimitedLine(line: string, delimiter: string) {
   return values.map((value) => value.trim());
 }
 
+function sanitiseParsedRows(rows: Array<SheetJsRow | string[]>): ParsedTable {
+  const normalisedRows = rows.map((row) =>
+    row.map((cell) => {
+      if (cell === null || cell === undefined) {
+        return "";
+      }
+
+      if (cell instanceof Date) {
+        return cell.toISOString();
+      }
+
+      return String(cell).trim();
+    }) as string[],
+  );
+
+  const firstNonEmptyRowIndex = normalisedRows.findIndex((row) =>
+    row.some((cell) => cell.length > 0),
+  );
+
+  if (firstNonEmptyRowIndex === -1) {
+    return { headerRow: [], dataRows: [] };
+  }
+
+  const headerRow = normalisedRows[firstNonEmptyRowIndex];
+  const dataRows = normalisedRows
+    .slice(firstNonEmptyRowIndex + 1)
+    .filter((row) => row.some((cell) => cell.length > 0));
+
+  return { headerRow, dataRows };
+}
+
 function normaliseColumnHeaders(headerRow: string[], dataRows: string[][]) {
   const columnCount = dataRows.reduce(
     (max, row) => Math.max(max, row.length),
@@ -139,6 +201,134 @@ function normaliseColumnHeaders(headerRow: string[], dataRows: string[][]) {
   });
 }
 
+async function loadSheetJsModule() {
+  if (typeof window === "undefined") {
+    throw new Error("SheetJS solo puede cargarse en el cliente");
+  }
+
+  if (window.XLSX) {
+    return window.XLSX;
+  }
+
+  if (!sheetJsLoader) {
+    sheetJsLoader = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector<HTMLScriptElement>(
+        "script[data-sheetjs-loader=\"true\"]",
+      );
+
+      if (existingScript) {
+        existingScript.addEventListener("load", () => {
+          if (window.XLSX) {
+            resolve(window.XLSX);
+            return;
+          }
+
+          sheetJsLoader = null;
+          reject(new Error("SheetJS no se inicializó correctamente"));
+        });
+        existingScript.addEventListener("error", () => {
+          sheetJsLoader = null;
+          reject(new Error("No se pudo cargar SheetJS"));
+        });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src =
+        "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+      script.async = true;
+      script.dataset.sheetjsLoader = "true";
+
+      script.addEventListener("load", () => {
+        if (window.XLSX) {
+          resolve(window.XLSX);
+          return;
+        }
+
+        sheetJsLoader = null;
+        reject(new Error("SheetJS no se inicializó correctamente"));
+      });
+
+      script.addEventListener("error", () => {
+        sheetJsLoader = null;
+        reject(new Error("No se pudo cargar SheetJS"));
+      });
+
+      const target = document.head ?? document.body ?? document.documentElement;
+      target.appendChild(script);
+    });
+  }
+
+  if (!sheetJsLoader) {
+    throw new Error("No se pudo inicializar la carga de SheetJS");
+  }
+
+  return sheetJsLoader;
+}
+
+async function parseCsvFile(file: File): Promise<ParsedTable | null> {
+  const fileContent = await file.text();
+  const lines = fileContent.split(/\r?\n/);
+
+  while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
+    lines.pop();
+  }
+
+  while (lines.length > 0 && lines[0].trim().length === 0) {
+    lines.shift();
+  }
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
+  const parsedRows = lines.map((line) => parseDelimitedLine(line, delimiter));
+  const { headerRow, dataRows } = sanitiseParsedRows(parsedRows);
+
+  if (headerRow.length === 0) {
+    return null;
+  }
+
+  return { headerRow, dataRows };
+}
+
+async function parseSpreadsheetFile(file: File): Promise<ParsedTable | null> {
+  const arrayBuffer = await file.arrayBuffer();
+  const sheetJs = await loadSheetJsModule();
+
+  const workbook = sheetJs.read(arrayBuffer, { type: "array" });
+  const [firstSheetName] = workbook.SheetNames ?? [];
+
+  if (!firstSheetName) {
+    return null;
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+
+  if (!worksheet) {
+    return null;
+  }
+
+  const sheetRows = sheetJs.utils.sheet_to_json(worksheet, {
+    header: 1,
+    raw: false,
+    defval: "",
+  }) as SheetJsRow[];
+
+  if (!Array.isArray(sheetRows) || sheetRows.length === 0) {
+    return null;
+  }
+
+  const { headerRow, dataRows } = sanitiseParsedRows(sheetRows);
+
+  if (headerRow.length === 0) {
+    return null;
+  }
+
+  return { headerRow, dataRows };
+}
+
 export default function ImportStudentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -163,37 +353,30 @@ export default function ImportStudentsPage() {
 
     try {
       const fileExtension = file.name.split(".").pop()?.toLowerCase();
-      if (fileExtension !== "csv") {
+      let parsedTable: ParsedTable | null = null;
+
+      if (fileExtension === "csv") {
+        parsedTable = await parseCsvFile(file);
+      } else if (fileExtension === "xls" || fileExtension === "xlsx") {
+        parsedTable = await parseSpreadsheetFile(file);
+      } else {
         console.warn(
-          "Detección de columnas disponible únicamente para archivos CSV en esta versión.",
+          "Formato de archivo no soportado. Utilice archivos CSV, XLS o XLSX.",
         );
+      }
+
+      if (!parsedTable) {
         setColumnHeaders([]);
         setDataRows([]);
         return;
       }
 
-      const fileContent = await file.text();
-      const lines = fileContent.split(/\r?\n/);
-
-      while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
-        lines.pop();
-      }
-
-      if (lines.length === 0) {
-        setColumnHeaders([]);
-        return;
-      }
-
-      const delimiter = detectDelimiter(lines[0]);
-      const headerRow = parseDelimitedLine(lines[0], delimiter);
-      const parsedDataRows = lines
-        .slice(1)
-        .map((line) => parseDelimitedLine(line, delimiter))
-        .filter((row) => row.some((cell) => cell.length > 0));
-
-      const normalisedHeaders = normaliseColumnHeaders(headerRow, parsedDataRows);
+      const normalisedHeaders = normaliseColumnHeaders(
+        parsedTable.headerRow,
+        parsedTable.dataRows,
+      );
       setColumnHeaders(normalisedHeaders);
-      setDataRows(parsedDataRows);
+      setDataRows(parsedTable.dataRows);
     } catch (error) {
       console.error("No se pudieron leer las columnas del archivo importado", error);
       setColumnHeaders([]);
