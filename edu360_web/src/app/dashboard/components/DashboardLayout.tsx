@@ -193,6 +193,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
               <CustomSelect
                 availableKeys={["Año Lectivo 2024", "Año Lectivo 2023"]}
+                selectedValueClassName="text-center"
+                optionClassName="text-center"
               />
             </div>
 
