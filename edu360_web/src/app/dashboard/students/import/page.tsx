@@ -8,7 +8,6 @@ type FieldMapping = {
   label: string;
   required?: boolean;
   sample: string;
-  options: string[];
 };
 
 const FIELD_MAPPINGS: FieldMapping[] = [
@@ -16,68 +15,37 @@ const FIELD_MAPPINGS: FieldMapping[] = [
     label: "Cédula",
     required: true,
     sample: "12345678A, 98765432B, 11223344C...",
-    options: [
-      "Selecciona una columna",
-      "cedula",
-      "documento_estudiante",
-      "numero_identificacion",
-    ],
   },
   {
     label: "Nombre",
     required: true,
     sample: "Ana, Carlos, Sofía, Mateo, Isabella",
-    options: ["Selecciona una columna", "nombre", "nombres", "student_name"],
   },
   {
     label: "Primer apellido",
     required: true,
     sample: "García, Rodríguez, López, Martínez, Pérez",
-    options: [
-      "Selecciona una columna",
-      "primer_apellido",
-      "apellido_paterno",
-      "last_name_1",
-    ],
   },
   {
     label: "Segundo apellido",
     sample: "Fernández, Gómez, Ramírez, Castillo, Torres",
-    options: [
-      "Selecciona una columna",
-      "segundo_apellido",
-      "apellido_materno",
-      "last_name_2",
-    ],
   },
   {
     label: "Sección",
     sample: "Sección A, Sección B, Sección C...",
-    options: ["Selecciona una columna", "seccion", "grupo", "clase"],
   },
   {
     label: "Especialidad",
     sample: "Ciencias, Humanidades, Artes, Tecnología...",
-    options: [
-      "Selecciona una columna",
-      "especialidad",
-      "programa",
-      "area_formacion",
-    ],
   },
   {
     label: "Fecha de nacimiento",
     sample: "1995-05-15, 1998-11-20, 2000-03-10...",
-    options: [
-      "Selecciona una columna",
-      "fecha_nacimiento",
-      "fecha_nac",
-      "birth_date",
-    ],
   },
 ];
 
 const PLACEHOLDER_ROWS = [0, 1];
+const COLUMN_PLACEHOLDER = "Selecciona una columna";
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) {
@@ -90,24 +58,205 @@ function formatFileSize(bytes: number) {
   return `${value.toFixed(value < 10 && i > 0 ? 1 : 0)} ${sizes[i]}`;
 }
 
+function detectDelimiter(line: string) {
+  const commaCount = (line.match(/,/g) ?? []).length;
+  const semicolonCount = (line.match(/;/g) ?? []).length;
+  const tabCount = (line.match(/\t/g) ?? []).length;
+
+  if (semicolonCount > commaCount && semicolonCount >= tabCount) {
+    return ";";
+  }
+
+  if (tabCount > commaCount) {
+    return "\t";
+  }
+
+  return ",";
+}
+
+function parseDelimitedLine(line: string, delimiter: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === "\"") {
+      if (inQuotes && line[index + 1] === "\"") {
+        current += "\"";
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values.map((value) => value.trim());
+}
+
+function normaliseColumnHeaders(headerRow: string[], dataRows: string[][]) {
+  const columnCount = dataRows.reduce(
+    (max, row) => Math.max(max, row.length),
+    headerRow.length,
+  );
+
+  let unnamedColumnCounter = 0;
+
+  return Array.from({ length: columnCount }, (_, columnIndex) => {
+    const headerValue = headerRow[columnIndex] ?? "";
+    const trimmedHeader = headerValue.trim();
+
+    if (trimmedHeader.length > 0) {
+      return trimmedHeader;
+    }
+
+    const columnHasData = dataRows.some((row) => {
+      const cellValue = row[columnIndex];
+      return (
+        cellValue !== undefined &&
+        cellValue !== null &&
+        String(cellValue).trim().length > 0
+      );
+    });
+
+    if (columnHasData) {
+      unnamedColumnCounter += 1;
+      return `Sin nombre ${unnamedColumnCounter}`;
+    }
+
+    return `Columna ${columnIndex + 1}`;
+  });
+}
+
 export default function ImportStudentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
+  const [dataRows, setDataRows] = useState<string[][]>([]);
+  const [fieldSelections, setFieldSelections] = useState<Record<string, string>>({});
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = event.target.files ?? [];
     setSelectedFile(file ?? null);
+    setFieldSelections({});
+    setDataRows([]);
+
+    if (!file) {
+      setColumnHeaders([]);
+      return;
+    }
+
+    try {
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
+      if (fileExtension !== "csv") {
+        console.warn(
+          "Detección de columnas disponible únicamente para archivos CSV en esta versión.",
+        );
+        setColumnHeaders([]);
+        setDataRows([]);
+        return;
+      }
+
+      const fileContent = await file.text();
+      const lines = fileContent.split(/\r?\n/);
+
+      while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
+        lines.pop();
+      }
+
+      if (lines.length === 0) {
+        setColumnHeaders([]);
+        return;
+      }
+
+      const delimiter = detectDelimiter(lines[0]);
+      const headerRow = parseDelimitedLine(lines[0], delimiter);
+      const parsedDataRows = lines
+        .slice(1)
+        .map((line) => parseDelimitedLine(line, delimiter))
+        .filter((row) => row.some((cell) => cell.length > 0));
+
+      const normalisedHeaders = normaliseColumnHeaders(headerRow, parsedDataRows);
+      setColumnHeaders(normalisedHeaders);
+      setDataRows(parsedDataRows);
+    } catch (error) {
+      console.error("No se pudieron leer las columnas del archivo importado", error);
+      setColumnHeaders([]);
+      setDataRows([]);
+    }
   };
 
   const handleResetSelection = () => {
     setSelectedFile(null);
+    setColumnHeaders([]);
+    setDataRows([]);
+    setFieldSelections({});
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleFieldSelectionChange = (fieldLabel: string, value: string) => {
+    setFieldSelections((previousSelections) => {
+      if (value === COLUMN_PLACEHOLDER) {
+        const updatedSelections = { ...previousSelections };
+        delete updatedSelections[fieldLabel];
+        return updatedSelections;
+      }
+
+      return {
+        ...previousSelections,
+        [fieldLabel]: value,
+      };
+    });
+  };
+
+  const getPreviewForField = (field: FieldMapping) => {
+    const selectedColumn = fieldSelections[field.label];
+
+    if (!selectedColumn) {
+      return field.sample;
+    }
+
+    const columnIndex = columnHeaders.indexOf(selectedColumn);
+
+    if (columnIndex === -1) {
+      return field.sample;
+    }
+
+    const previewValues = dataRows
+      .map((row) => row[columnIndex] ?? "")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    if (previewValues.length === 0) {
+      return "Sin datos disponibles en la columna seleccionada";
+    }
+
+    const MAX_PREVIEW_VALUES = 5;
+    const slicedPreviewValues = previewValues.slice(0, MAX_PREVIEW_VALUES);
+    const previewText = slicedPreviewValues.join(", ");
+
+    if (previewValues.length > MAX_PREVIEW_VALUES) {
+      return `${previewText}...`;
+    }
+
+    return previewText;
   };
 
   return (
@@ -295,11 +444,17 @@ export default function ImportStudentsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="max-w-sm">
-                        <CustomSelect availableKeys={field.options} />
+                        <CustomSelect
+                          availableKeys={[COLUMN_PLACEHOLDER, ...columnHeaders]}
+                          value={fieldSelections[field.label] ?? COLUMN_PLACEHOLDER}
+                          onChange={(value) =>
+                            handleFieldSelectionChange(field.label, value)
+                          }
+                        />
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                      {field.sample}
+                      {getPreviewForField(field)}
                     </td>
                   </tr>
                 ))}
