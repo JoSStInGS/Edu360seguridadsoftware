@@ -12,41 +12,25 @@ type ParsedTable = {
 type FieldMapping = {
   label: string;
   required?: boolean;
-  sample: string;
 };
 
 const FIELD_MAPPINGS: FieldMapping[] = [
   {
     label: "Cédula",
     required: true,
-    sample: "12345678A, 98765432B, 11223344C...",
   },
   {
     label: "Nombre",
     required: true,
-    sample: "Ana, Carlos, Sofía, Mateo, Isabella",
   },
   {
     label: "Primer apellido",
     required: true,
-    sample: "García, Rodríguez, López, Martínez, Pérez",
   },
-  {
-    label: "Segundo apellido",
-    sample: "Fernández, Gómez, Ramírez, Castillo, Torres",
-  },
-  {
-    label: "Sección",
-    sample: "Sección A, Sección B, Sección C...",
-  },
-  {
-    label: "Especialidad",
-    sample: "Ciencias, Humanidades, Artes, Tecnología...",
-  },
-  {
-    label: "Fecha de nacimiento",
-    sample: "1995-05-15, 1998-11-20, 2000-03-10...",
-  },
+  { label: "Segundo apellido" },
+  { label: "Sección" },
+  { label: "Especialidad" },
+  { label: "Fecha de nacimiento" },
 ];
 
 const PLACEHOLDER_ROWS = [0, 1];
@@ -226,13 +210,13 @@ export default function ImportStudentsPage() {
     const selectedColumn = fieldSelections[field.label];
 
     if (!selectedColumn) {
-      return field.sample;
+      return "Selecciona una columna para ver la vista previa";
     }
 
     const columnIndex = columnHeaders.indexOf(selectedColumn);
 
     if (columnIndex === -1) {
-      return field.sample;
+      return "Selecciona una columna para ver la vista previa";
     }
 
     const previewValues = dataRows
@@ -244,15 +228,7 @@ export default function ImportStudentsPage() {
       return "Sin datos disponibles en la columna seleccionada";
     }
 
-    const MAX_PREVIEW_VALUES = 4;
-    const slicedPreviewValues = previewValues.slice(0, MAX_PREVIEW_VALUES);
-    const previewText = slicedPreviewValues.join(", ");
-
-    if (previewValues.length > MAX_PREVIEW_VALUES) {
-      return `${previewText}...`;
-    }
-
-    return previewText;
+    return previewValues[0];
   };
 
   return (

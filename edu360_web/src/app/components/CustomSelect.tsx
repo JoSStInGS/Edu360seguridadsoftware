@@ -11,7 +11,35 @@ export default function CustomSelect(props: Props) {
   const [selectedKey, setSelectedKey] = useState(
     props.value ?? props.availableKeys[0],
   );
+  const [dropdownDirection, setDropdownDirection] = useState<"up" | "down">(
+    "down",
+  );
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const estimateDropdownHeight = () => {
+    const ESTIMATED_ITEM_HEIGHT = 36;
+    const MAX_HEIGHT = 192;
+    const estimatedHeight = props.availableKeys.length * ESTIMATED_ITEM_HEIGHT;
+    return Math.min(estimatedHeight, MAX_HEIGHT);
+  };
+
+  const determineDropdownDirection = () => {
+    if (typeof window === "undefined" || !wrapperRef.current) {
+      return "down";
+    }
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const dropdownHeight = estimateDropdownHeight();
+
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+      return "up";
+    }
+
+    return "down";
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -68,7 +96,13 @@ export default function CustomSelect(props: Props) {
 
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            setDropdownDirection(determineDropdownDirection());
+          }
+
+          setIsOpen(!isOpen);
+        }}
         className="w-full flex justify-between items-center rounded-lg border border-[var(--secondary)] bg-white px-3 py-1 text-xs text-[var(--text)]
                    hover:border-[var(--accent)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition"
       >
@@ -83,7 +117,13 @@ export default function CustomSelect(props: Props) {
       </button>
 
       {isOpen && (
-        <ul className="absolute mt-1 w-full rounded-lg border border-[var(--primary)] bg-white shadow-lg z-20 max-h-48 overflow-y-auto">
+        <ul
+          className={`absolute left-0 z-20 w-full max-h-48 overflow-y-auto rounded-lg border border-[var(--primary)] bg-white shadow-lg ${
+            dropdownDirection === "down"
+              ? "top-full mt-1 origin-top"
+              : "bottom-full mb-1 origin-bottom"
+          }`}
+        >
           {props.availableKeys.map((key, index) => (
             <li
               key={`${key}-${index}`}
