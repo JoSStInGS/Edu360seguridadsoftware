@@ -4,6 +4,11 @@ interface Props {
   availableKeys: string[];
   value?: string;
   onChange?: (key: string) => void;
+  className?: string;
+  triggerClassName?: string;
+  dropdownClassName?: string;
+  optionClassName?: string;
+  selectedValueClassName?: string;
 }
 
 export default function CustomSelect(props: Props) {
@@ -82,7 +87,10 @@ export default function CustomSelect(props: Props) {
   };
 
   return (
-    <div ref={wrapperRef} className="relative w-full">
+    <div
+      ref={wrapperRef}
+      className={`relative w-full ${props.className ? props.className : ""}`}
+    >
       <select
         className="sr-only"
         value={selectedKey}
@@ -103,10 +111,17 @@ export default function CustomSelect(props: Props) {
 
           setIsOpen(!isOpen);
         }}
-        className="w-full flex justify-between items-center rounded-lg border border-[var(--secondary)] bg-white px-3 py-1 text-xs text-[var(--text)]
-                   hover:border-[var(--accent)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition"
+        className={`flex w-full items-center justify-between rounded-lg border border-[var(--secondary)] bg-white px-3 py-1 text-xs text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] ${
+          props.triggerClassName ? props.triggerClassName : ""
+        }`}
       >
-        <span>{selectedKey}</span>
+        <span
+          className={`flex-1 text-left ${
+            props.selectedValueClassName ? props.selectedValueClassName : ""
+          }`}
+        >
+          {selectedKey}
+        </span>
         <span
           className={`material-symbols-outlined text-[var(--accent)] transition-transform duration-200 ${
             isOpen ? "rotate-180" : "rotate-0"
@@ -122,12 +137,14 @@ export default function CustomSelect(props: Props) {
             dropdownDirection === "down"
               ? "top-full mt-1 origin-top"
               : "bottom-full mb-1 origin-bottom"
-          }`}
+          } ${props.dropdownClassName ? props.dropdownClassName : ""}`}
         >
           {props.availableKeys.map((key, index) => (
             <li
               key={`${key}-${index}`}
-              className="m-0.5 text-center px-3 py-2 text-xs text-[var(--text)] hover:bg-[rgba(21,53,147,0.1)] rounded-lg cursor-pointer transition"
+              className={`m-0.5 rounded-lg px-3 py-2 text-xs text-[var(--text)] text-left transition hover:bg-[rgba(21,53,147,0.1)] ${
+                props.optionClassName ? props.optionClassName : ""
+              }`}
               onClick={() => handleSelection(key)}
             >
               {key}

@@ -138,6 +138,9 @@ export default function ImportStudentsPage() {
   const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
   const [dataRows, setDataRows] = useState<string[][]>([]);
   const [fieldSelections, setFieldSelections] = useState<Record<string, string>>({});
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -148,6 +151,8 @@ export default function ImportStudentsPage() {
     setSelectedFile(file ?? null);
     setFieldSelections({});
     setDataRows([]);
+    setImportFeedback(null);
+    setImportError(null);
 
     if (!file) {
       setColumnHeaders([]);
@@ -161,6 +166,7 @@ export default function ImportStudentsPage() {
         console.warn("Formato de archivo no soportado. Utilice archivos CSV.");
         setColumnHeaders([]);
         setDataRows([]);
+        setImportError("Formato de archivo no soportado. Utiliza un archivo CSV.");
         return;
       }
 
@@ -169,6 +175,9 @@ export default function ImportStudentsPage() {
       if (!parsedTable) {
         setColumnHeaders([]);
         setDataRows([]);
+        setImportError(
+          "No se pudieron leer las columnas del archivo importado. Verifica el contenido.",
+        );
         return;
       }
 
@@ -178,6 +187,9 @@ export default function ImportStudentsPage() {
       console.error("No se pudieron leer las columnas del archivo importado", error);
       setColumnHeaders([]);
       setDataRows([]);
+      setImportError(
+        "Ocurrió un error al leer el archivo seleccionado. Intenta nuevamente.",
+      );
     }
   };
 
@@ -186,12 +198,16 @@ export default function ImportStudentsPage() {
     setColumnHeaders([]);
     setDataRows([]);
     setFieldSelections({});
+    setImportFeedback(null);
+    setImportError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const handleFieldSelectionChange = (fieldLabel: string, value: string) => {
+    setImportFeedback(null);
+    setImportError(null);
     setFieldSelections((previousSelections) => {
       if (value === COLUMN_PLACEHOLDER) {
         const updatedSelections = { ...previousSelections };
@@ -229,6 +245,57 @@ export default function ImportStudentsPage() {
     }
 
     return previewValues[0];
+  };
+
+  const handleImportData = async () => {
+    if (!selectedFile) {
+      return;
+    }
+
+    const missingRequiredFields = FIELD_MAPPINGS.filter(
+      (field) => field.required && !fieldSelections[field.label],
+    );
+
+    if (missingRequiredFields.length > 0) {
+      setImportFeedback(null);
+      setImportError(
+        `Asigna columnas para los campos obligatorios: ${missingRequiredFields
+          .map((field) => field.label)
+          .join(", ")}.`,
+      );
+      return;
+    }
+
+    setImportFeedback(null);
+    setImportError(null);
+    setIsImporting(true);
+
+    const columnMappings = FIELD_MAPPINGS.map((field) => ({
+      field: field.label,
+      column: fieldSelections[field.label] ?? null,
+      required: Boolean(field.required),
+    }));
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("mappings", JSON.stringify(columnMappings));
+
+    console.log("Simulación de envío de importación de estudiantes", {
+      file: {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type,
+      },
+      mappings: columnMappings,
+      formData,
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      setImportFeedback("Datos enviados...");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -436,21 +503,39 @@ export default function ImportStudentsPage() {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-[var(--border-light)] bg-[var(--background-light)] px-6 py-4 text-sm dark:border-[var(--border-dark)] dark:bg-[rgba(17,21,33,0.7)] md:flex-row md:justify-end">
-            <button
-              type="button"
-              onClick={handleResetSelection}
-              className="rounded-lg border border-[var(--border-light)] px-4 py-2 font-semibold text-[var(--muted-light)] transition hover:bg-[rgba(21,53,147,0.08)] dark:border-[var(--border-dark)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.15)]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 font-semibold text-white shadow-sm transition hover:brightness-110"
-            >
-              <span className="material-symbols-outlined text-base">check_circle</span>
-              Validar datos
-            </button>
+          <div className="flex flex-col gap-3 border-t border-[var(--border-light)] bg-[var(--background-light)] px-6 py-4 text-sm dark:border-[var(--border-dark)] dark:bg-[rgba(17,21,33,0.7)] md:flex-row md:items-center md:justify-between">
+            {(importError || importFeedback) && (
+              <p
+                className={`font-medium ${
+                  importError
+                    ? "text-[var(--destructive-light)]"
+                    : "text-[var(--primary)]"
+                }`}
+              >
+                {importError ?? importFeedback}
+              </p>
+            )}
+            <div className="flex flex-col gap-3 md:ml-auto md:flex-row md:items-center">
+              <button
+                type="button"
+                onClick={handleResetSelection}
+                disabled={isImporting}
+                className="rounded-lg border border-[var(--border-light)] px-4 py-2 font-semibold text-[var(--muted-light)] transition hover:bg-[rgba(21,53,147,0.08)] disabled:cursor-not-allowed disabled:opacity-70 dark:border-[var(--border-dark)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.15)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleImportData}
+                disabled={isImporting}
+                className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 font-semibold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {isImporting ? "hourglass_top" : "cloud_upload"}
+                </span>
+                {isImporting ? "Enviando datos..." : "Importar datos"}
+              </button>
+            </div>
           </div>
         </div>
       )}
