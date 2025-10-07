@@ -4,30 +4,6 @@ import Link from "next/link";
 import { ChangeEvent, useRef, useState } from "react";
 import CustomSelect from "@/app/components/CustomSelect";
 
-type SheetJsModule = {
-  read: (
-    data: ArrayBuffer | Uint8Array,
-    options: { type: "array" | "binary" | "buffer" | "file" | "string" },
-  ) => {
-    SheetNames: string[];
-    Sheets: Record<string, unknown>;
-  };
-  utils: {
-    sheet_to_json: <T = unknown[]>(
-      worksheet: unknown,
-      options: { header: 1; raw: boolean; defval: string },
-    ) => T;
-  };
-};
-
-type SheetJsRow = Array<string | number | boolean | Date | null | undefined>;
-
-declare global {
-  interface Window {
-    XLSX?: SheetJsModule;
-  }
-}
-
 type ParsedTable = {
   headerRow: string[];
   dataRows: string[][];
@@ -75,8 +51,6 @@ const FIELD_MAPPINGS: FieldMapping[] = [
 
 const PLACEHOLDER_ROWS = [0, 1];
 const COLUMN_PLACEHOLDER = "Selecciona una columna";
-
-let sheetJsLoader: Promise<SheetJsModule> | null = null;
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) {
@@ -136,136 +110,6 @@ function parseDelimitedLine(line: string, delimiter: string) {
   return values.map((value) => value.trim());
 }
 
-function sanitiseParsedRows(rows: Array<SheetJsRow | string[]>): ParsedTable {
-  const normalisedRows = rows.map((row) =>
-    row.map((cell) => {
-      if (cell === null || cell === undefined) {
-        return "";
-      }
-
-      if (cell instanceof Date) {
-        return cell.toISOString();
-      }
-
-      return String(cell).trim();
-    }) as string[],
-  );
-
-  const firstNonEmptyRowIndex = normalisedRows.findIndex((row) =>
-    row.some((cell) => cell.length > 0),
-  );
-
-  if (firstNonEmptyRowIndex === -1) {
-    return { headerRow: [], dataRows: [] };
-  }
-
-  const headerRow = normalisedRows[firstNonEmptyRowIndex];
-  const dataRows = normalisedRows
-    .slice(firstNonEmptyRowIndex + 1)
-    .filter((row) => row.some((cell) => cell.length > 0));
-
-  return { headerRow, dataRows };
-}
-
-function normaliseColumnHeaders(headerRow: string[], dataRows: string[][]) {
-  const columnCount = dataRows.reduce(
-    (max, row) => Math.max(max, row.length),
-    headerRow.length,
-  );
-
-  let unnamedColumnCounter = 0;
-
-  return Array.from({ length: columnCount }, (_, columnIndex) => {
-    const headerValue = headerRow[columnIndex] ?? "";
-    const trimmedHeader = headerValue.trim();
-
-    if (trimmedHeader.length > 0) {
-      return trimmedHeader;
-    }
-
-    const columnHasData = dataRows.some((row) => {
-      const cellValue = row[columnIndex];
-      return (
-        cellValue !== undefined &&
-        cellValue !== null &&
-        String(cellValue).trim().length > 0
-      );
-    });
-
-    if (columnHasData) {
-      unnamedColumnCounter += 1;
-      return `Sin nombre ${unnamedColumnCounter}`;
-    }
-
-    return `Columna ${columnIndex + 1}`;
-  });
-}
-
-async function loadSheetJsModule() {
-  if (typeof window === "undefined") {
-    throw new Error("SheetJS solo puede cargarse en el cliente");
-  }
-
-  if (window.XLSX) {
-    return window.XLSX;
-  }
-
-  if (!sheetJsLoader) {
-    sheetJsLoader = new Promise((resolve, reject) => {
-      const existingScript = document.querySelector<HTMLScriptElement>(
-        "script[data-sheetjs-loader=\"true\"]",
-      );
-
-      if (existingScript) {
-        existingScript.addEventListener("load", () => {
-          if (window.XLSX) {
-            resolve(window.XLSX);
-            return;
-          }
-
-          sheetJsLoader = null;
-          reject(new Error("SheetJS no se inicializó correctamente"));
-        });
-        existingScript.addEventListener("error", () => {
-          sheetJsLoader = null;
-          reject(new Error("No se pudo cargar SheetJS"));
-        });
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src =
-        "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
-      script.async = true;
-      script.dataset.sheetjsLoader = "true";
-
-      script.addEventListener("load", () => {
-        if (window.XLSX) {
-          resolve(window.XLSX);
-          return;
-        }
-
-        sheetJsLoader = null;
-        reject(new Error("SheetJS no se inicializó correctamente"));
-      });
-
-      script.addEventListener("error", () => {
-        sheetJsLoader = null;
-        reject(new Error("No se pudo cargar SheetJS"));
-      });
-
-      const target = document.head ?? document.body ?? document.documentElement;
-      target.appendChild(script);
-    });
-  }
-
-  if (!sheetJsLoader) {
-    throw new Error("No se pudo inicializar la carga de SheetJS");
-  }
-
-  return sheetJsLoader;
-}
-
 async function parseCsvFile(file: File): Promise<ParsedTable | null> {
   const fileContent = await file.text();
   const lines = fileContent.split(/\r?\n/);
@@ -283,50 +127,25 @@ async function parseCsvFile(file: File): Promise<ParsedTable | null> {
   }
 
   const delimiter = detectDelimiter(lines[0]);
-  const parsedRows = lines.map((line) => parseDelimitedLine(line, delimiter));
-  const { headerRow, dataRows } = sanitiseParsedRows(parsedRows);
+  const parsedRows = lines
+    .map((line) => parseDelimitedLine(line, delimiter))
+    .map((row) => row.map((cell) => cell.trim()));
 
-  if (headerRow.length === 0) {
+  if (parsedRows.length === 0) {
     return null;
   }
 
-  return { headerRow, dataRows };
-}
+  const [headerRow, ...dataRows] = parsedRows;
 
-async function parseSpreadsheetFile(file: File): Promise<ParsedTable | null> {
-  const arrayBuffer = await file.arrayBuffer();
-  const sheetJs = await loadSheetJsModule();
-
-  const workbook = sheetJs.read(arrayBuffer, { type: "array" });
-  const [firstSheetName] = workbook.SheetNames ?? [];
-
-  if (!firstSheetName) {
+  if (!headerRow || headerRow.every((cell) => cell.length === 0)) {
     return null;
   }
 
-  const worksheet = workbook.Sheets[firstSheetName];
+  const filteredDataRows = dataRows.filter((row) =>
+    row.some((cell) => cell.length > 0),
+  );
 
-  if (!worksheet) {
-    return null;
-  }
-
-  const sheetRows = sheetJs.utils.sheet_to_json(worksheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-  }) as SheetJsRow[];
-
-  if (!Array.isArray(sheetRows) || sheetRows.length === 0) {
-    return null;
-  }
-
-  const { headerRow, dataRows } = sanitiseParsedRows(sheetRows);
-
-  if (headerRow.length === 0) {
-    return null;
-  }
-
-  return { headerRow, dataRows };
+  return { headerRow, dataRows: filteredDataRows };
 }
 
 export default function ImportStudentsPage() {
@@ -353,17 +172,15 @@ export default function ImportStudentsPage() {
 
     try {
       const fileExtension = file.name.split(".").pop()?.toLowerCase();
-      let parsedTable: ParsedTable | null = null;
 
-      if (fileExtension === "csv") {
-        parsedTable = await parseCsvFile(file);
-      } else if (fileExtension === "xls" || fileExtension === "xlsx") {
-        parsedTable = await parseSpreadsheetFile(file);
-      } else {
-        console.warn(
-          "Formato de archivo no soportado. Utilice archivos CSV, XLS o XLSX.",
-        );
+      if (fileExtension !== "csv") {
+        console.warn("Formato de archivo no soportado. Utilice archivos CSV.");
+        setColumnHeaders([]);
+        setDataRows([]);
+        return;
       }
+
+      const parsedTable = await parseCsvFile(file);
 
       if (!parsedTable) {
         setColumnHeaders([]);
@@ -371,11 +188,7 @@ export default function ImportStudentsPage() {
         return;
       }
 
-      const normalisedHeaders = normaliseColumnHeaders(
-        parsedTable.headerRow,
-        parsedTable.dataRows,
-      );
-      setColumnHeaders(normalisedHeaders);
+      setColumnHeaders(parsedTable.headerRow);
       setDataRows(parsedTable.dataRows);
     } catch (error) {
       console.error("No se pudieron leer las columnas del archivo importado", error);
@@ -431,7 +244,7 @@ export default function ImportStudentsPage() {
       return "Sin datos disponibles en la columna seleccionada";
     }
 
-    const MAX_PREVIEW_VALUES = 5;
+    const MAX_PREVIEW_VALUES = 4;
     const slicedPreviewValues = previewValues.slice(0, MAX_PREVIEW_VALUES);
     const previewText = slicedPreviewValues.join(", ");
 
@@ -458,14 +271,14 @@ export default function ImportStudentsPage() {
           Asistente de Importación de Estudiantes
         </h2>
         <p className="text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-          Siga los pasos para importar sus estudiantes desde un archivo Excel o CSV.
+          Siga los pasos para importar sus estudiantes desde un archivo CSV.
         </p>
       </div>
 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xls,.xlsx"
+        accept=".csv"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -486,7 +299,7 @@ export default function ImportStudentsPage() {
                     <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                       1. Subir archivo:
                     </span>{" "}
-                    Seleccione el archivo .xlsx, .xls o .csv.
+                    Seleccione el archivo .csv.
                   </p>
                   <p>
                     <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
