@@ -71,9 +71,9 @@ function parseDelimitedLine(line: string, delimiter: string) {
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
 
-    if (char === "\"") {
-      if (inQuotes && line[index + 1] === "\"") {
-        current += "\"";
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
         index += 1;
       } else {
         inQuotes = !inQuotes;
@@ -126,7 +126,7 @@ async function parseCsvFile(file: File): Promise<ParsedTable | null> {
   }
 
   const filteredDataRows = dataRows.filter((row) =>
-    row.some((cell) => cell.length > 0),
+    row.some((cell) => cell.length > 0)
   );
 
   return { headerRow, dataRows: filteredDataRows };
@@ -137,7 +137,9 @@ export default function ImportStudentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
   const [dataRows, setDataRows] = useState<string[][]>([]);
-  const [fieldSelections, setFieldSelections] = useState<Record<string, string>>({});
+  const [fieldSelections, setFieldSelections] = useState<
+    Record<string, string>
+  >({});
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -175,7 +177,10 @@ export default function ImportStudentsPage() {
       setColumnHeaders(parsedTable.headerRow);
       setDataRows(parsedTable.dataRows);
     } catch (error) {
-      console.error("No se pudieron leer las columnas del archivo importado", error);
+      console.error(
+        "No se pudieron leer las columnas del archivo importado",
+        error
+      );
       setColumnHeaders([]);
       setDataRows([]);
     }
@@ -348,7 +353,8 @@ export default function ImportStudentsPage() {
             </div>
           </div>
           <div className="border-t border-[var(--border-light)] bg-[rgba(246,246,248,0.6)] px-6 py-4 text-xs text-[var(--muted-light)] dark:border-[var(--border-dark)] dark:bg-[rgba(17,21,33,0.6)] dark:text-[var(--muted-dark)]">
-            Solo se almacenan datos estrictamente necesarios para la operación escolar en EDU360. Fuente: exportación PIAD.
+            Solo se almacenan datos estrictamente necesarios para la operación
+            escolar en EDU360. Fuente: exportación PIAD.
           </div>
         </div>
       )}
@@ -362,7 +368,8 @@ export default function ImportStudentsPage() {
                   Mapeo de columnas
                 </h1>
                 <p className="mt-1 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                  Asigna las columnas del archivo a los campos requeridos en EDU360 antes de validar la información.
+                  Asigna las columnas del archivo a los campos requeridos en
+                  EDU360 antes de validar la información.
                 </p>
               </div>
               <div className="flex items-center gap-3 rounded-lg bg-[rgba(21,53,147,0.08)] px-4 py-3 text-sm text-[var(--primary)] dark:bg-[rgba(21,53,147,0.15)]">
@@ -395,32 +402,23 @@ export default function ImportStudentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-light)] dark:divide-[var(--border-dark)]">
-                {PLACEHOLDER_ROWS.map((index) => (
-                  <tr key={index} className="animate-pulse">
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-3/4 rounded bg-[rgba(80,98,149,0.12)]" />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-10 w-full rounded-lg bg-[rgba(80,98,149,0.12)]" />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-full rounded bg-[rgba(80,98,149,0.12)]" />
-                    </td>
-                  </tr>
-                ))}
                 {FIELD_MAPPINGS.map((field) => (
                   <tr key={field.label}>
                     <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                       {field.label}
                       {field.required && (
-                        <span className="ml-1 text-[var(--destructive-light)]">*</span>
+                        <span className="ml-1 text-[var(--destructive-light)]">
+                          *
+                        </span>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="max-w-sm">
                         <CustomSelect
                           availableKeys={[COLUMN_PLACEHOLDER, ...columnHeaders]}
-                          value={fieldSelections[field.label] ?? COLUMN_PLACEHOLDER}
+                          value={
+                            fieldSelections[field.label] ?? COLUMN_PLACEHOLDER
+                          }
                           onChange={(value) =>
                             handleFieldSelectionChange(field.label, value)
                           }
@@ -448,7 +446,9 @@ export default function ImportStudentsPage() {
               type="button"
               className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 font-semibold text-white shadow-sm transition hover:brightness-110"
             >
-              <span className="material-symbols-outlined text-base">check_circle</span>
+              <span className="material-symbols-outlined text-base">
+                check_circle
+              </span>
               Validar datos
             </button>
           </div>
