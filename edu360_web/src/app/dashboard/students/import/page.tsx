@@ -245,7 +245,9 @@ export default function ImportStudentsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3 rounded-lg bg-[rgba(21,53,147,0.08)] px-4 py-3 text-sm text-[var(--primary)] dark:bg-[rgba(21,53,147,0.15)]">
-                <span className="material-symbols-outlined text-base">description</span>
+                <span className="material-symbols-outlined text-base">
+                  description
+                </span>
                 <div className="flex flex-col text-left">
                   <span className="font-semibold">{selectedFile.name}</span>
                   <span className="text-xs text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
