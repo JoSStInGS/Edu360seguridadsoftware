@@ -4,80 +4,37 @@ import Link from "next/link";
 import { ChangeEvent, useRef, useState } from "react";
 import CustomSelect from "@/app/components/CustomSelect";
 
+type ParsedTable = {
+  headerRow: string[];
+  dataRows: string[][];
+};
+
 type FieldMapping = {
   label: string;
   required?: boolean;
-  sample: string;
-  options: string[];
 };
 
 const FIELD_MAPPINGS: FieldMapping[] = [
   {
     label: "Cédula",
     required: true,
-    sample: "12345678A, 98765432B, 11223344C...",
-    options: [
-      "Selecciona una columna",
-      "cedula",
-      "documento_estudiante",
-      "numero_identificacion",
-    ],
   },
   {
     label: "Nombre",
     required: true,
-    sample: "Ana, Carlos, Sofía, Mateo, Isabella",
-    options: ["Selecciona una columna", "nombre", "nombres", "student_name"],
   },
   {
     label: "Primer apellido",
     required: true,
-    sample: "García, Rodríguez, López, Martínez, Pérez",
-    options: [
-      "Selecciona una columna",
-      "primer_apellido",
-      "apellido_paterno",
-      "last_name_1",
-    ],
   },
-  {
-    label: "Segundo apellido",
-    sample: "Fernández, Gómez, Ramírez, Castillo, Torres",
-    options: [
-      "Selecciona una columna",
-      "segundo_apellido",
-      "apellido_materno",
-      "last_name_2",
-    ],
-  },
-  {
-    label: "Sección",
-    sample: "Sección A, Sección B, Sección C...",
-    options: ["Selecciona una columna", "seccion", "grupo", "clase"],
-  },
-  {
-    label: "Especialidad",
-    sample: "Ciencias, Humanidades, Artes, Tecnología...",
-    options: [
-      "Selecciona una columna",
-      "especialidad",
-      "programa",
-      "area_formacion",
-    ],
-  },
-  {
-    label: "Fecha de nacimiento",
-    sample: "1995-05-15, 1998-11-20, 2000-03-10...",
-    options: [
-      "Selecciona una columna",
-      "fecha_nacimiento",
-      "fecha_nac",
-      "birth_date",
-    ],
-  },
+  { label: "Segundo apellido" },
+  { label: "Sección" },
+  { label: "Especialidad" },
+  { label: "Fecha de nacimiento" },
 ];
 
 const PLACEHOLDER_ROWS = [0, 1];
+const COLUMN_PLACEHOLDER = "Selecciona una columna";
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) {
@@ -90,24 +47,188 @@ function formatFileSize(bytes: number) {
   return `${value.toFixed(value < 10 && i > 0 ? 1 : 0)} ${sizes[i]}`;
 }
 
+function detectDelimiter(line: string) {
+  const commaCount = (line.match(/,/g) ?? []).length;
+  const semicolonCount = (line.match(/;/g) ?? []).length;
+  const tabCount = (line.match(/\t/g) ?? []).length;
+
+  if (semicolonCount > commaCount && semicolonCount >= tabCount) {
+    return ";";
+  }
+
+  if (tabCount > commaCount) {
+    return "\t";
+  }
+
+  return ",";
+}
+
+function parseDelimitedLine(line: string, delimiter: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === "\"") {
+      if (inQuotes && line[index + 1] === "\"") {
+        current += "\"";
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values.map((value) => value.trim());
+}
+
+async function parseCsvFile(file: File): Promise<ParsedTable | null> {
+  const fileContent = await file.text();
+  const lines = fileContent.split(/\r?\n/);
+
+  while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
+    lines.pop();
+  }
+
+  while (lines.length > 0 && lines[0].trim().length === 0) {
+    lines.shift();
+  }
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
+  const parsedRows = lines
+    .map((line) => parseDelimitedLine(line, delimiter))
+    .map((row) => row.map((cell) => cell.trim()));
+
+  if (parsedRows.length === 0) {
+    return null;
+  }
+
+  const [headerRow, ...dataRows] = parsedRows;
+
+  if (!headerRow || headerRow.every((cell) => cell.length === 0)) {
+    return null;
+  }
+
+  const filteredDataRows = dataRows.filter((row) =>
+    row.some((cell) => cell.length > 0),
+  );
+
+  return { headerRow, dataRows: filteredDataRows };
+}
+
 export default function ImportStudentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
+  const [dataRows, setDataRows] = useState<string[][]>([]);
+  const [fieldSelections, setFieldSelections] = useState<Record<string, string>>({});
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = event.target.files ?? [];
     setSelectedFile(file ?? null);
+    setFieldSelections({});
+    setDataRows([]);
+
+    if (!file) {
+      setColumnHeaders([]);
+      return;
+    }
+
+    try {
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+      if (fileExtension !== "csv") {
+        console.warn("Formato de archivo no soportado. Utilice archivos CSV.");
+        setColumnHeaders([]);
+        setDataRows([]);
+        return;
+      }
+
+      const parsedTable = await parseCsvFile(file);
+
+      if (!parsedTable) {
+        setColumnHeaders([]);
+        setDataRows([]);
+        return;
+      }
+
+      setColumnHeaders(parsedTable.headerRow);
+      setDataRows(parsedTable.dataRows);
+    } catch (error) {
+      console.error("No se pudieron leer las columnas del archivo importado", error);
+      setColumnHeaders([]);
+      setDataRows([]);
+    }
   };
 
   const handleResetSelection = () => {
     setSelectedFile(null);
+    setColumnHeaders([]);
+    setDataRows([]);
+    setFieldSelections({});
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleFieldSelectionChange = (fieldLabel: string, value: string) => {
+    setFieldSelections((previousSelections) => {
+      if (value === COLUMN_PLACEHOLDER) {
+        const updatedSelections = { ...previousSelections };
+        delete updatedSelections[fieldLabel];
+        return updatedSelections;
+      }
+
+      return {
+        ...previousSelections,
+        [fieldLabel]: value,
+      };
+    });
+  };
+
+  const getPreviewForField = (field: FieldMapping) => {
+    const selectedColumn = fieldSelections[field.label];
+
+    if (!selectedColumn) {
+      return "Selecciona una columna para ver la vista previa";
+    }
+
+    const columnIndex = columnHeaders.indexOf(selectedColumn);
+
+    if (columnIndex === -1) {
+      return "Selecciona una columna para ver la vista previa";
+    }
+
+    const previewValues = dataRows
+      .map((row) => row[columnIndex] ?? "")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    if (previewValues.length === 0) {
+      return "Sin datos disponibles en la columna seleccionada";
+    }
+
+    return previewValues[0];
   };
 
   return (
@@ -126,14 +247,14 @@ export default function ImportStudentsPage() {
           Asistente de Importación de Estudiantes
         </h2>
         <p className="text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-          Siga los pasos para importar sus estudiantes desde un archivo Excel o CSV.
+          Siga los pasos para importar sus estudiantes desde un archivo CSV.
         </p>
       </div>
 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xls,.xlsx"
+        accept=".csv"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -154,7 +275,7 @@ export default function ImportStudentsPage() {
                     <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                       1. Subir archivo:
                     </span>{" "}
-                    Seleccione el archivo .xlsx, .xls o .csv.
+                    Seleccione el archivo .csv.
                   </p>
                   <p>
                     <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
@@ -297,11 +418,17 @@ export default function ImportStudentsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="max-w-sm">
-                        <CustomSelect availableKeys={field.options} />
+                        <CustomSelect
+                          availableKeys={[COLUMN_PLACEHOLDER, ...columnHeaders]}
+                          value={fieldSelections[field.label] ?? COLUMN_PLACEHOLDER}
+                          onChange={(value) =>
+                            handleFieldSelectionChange(field.label, value)
+                          }
+                        />
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                      {field.sample}
+                      {getPreviewForField(field)}
                     </td>
                   </tr>
                 ))}
