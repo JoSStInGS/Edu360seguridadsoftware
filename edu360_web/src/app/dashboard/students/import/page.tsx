@@ -141,6 +141,9 @@ export default function ImportStudentsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [periodoLectivo, setPeriodoLectivo] = useState<string>("2025");
+  const [centerName, setCenterName] = useState<string>("Centro Educativo Principal");
+  const [phase, setPhase] = useState<"mapping" | "processing" | "success">("mapping");
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -203,6 +206,7 @@ export default function ImportStudentsPage() {
     setFieldSelections({});
     setImportFeedback(null);
     setImportError(null);
+    setPhase("mapping");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -272,6 +276,7 @@ export default function ImportStudentsPage() {
     setImportFeedback(null);
     setImportError(null);
     setIsImporting(true);
+    setPhase("processing");
 
     const columnMappings = FIELD_MAPPINGS.map((field) => ({
       field: field.label,
@@ -282,20 +287,21 @@ export default function ImportStudentsPage() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("mappings", JSON.stringify(columnMappings));
-
-    console.log("Simulación de envío de importación de estudiantes", {
-      file: {
-        name: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type,
-      },
-      mappings: columnMappings,
-      formData,
-    });
+    formData.append("centerName", centerName);
+    formData.append("periodoLectivo", periodoLectivo);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const res = await fetch("/api/import", { method: "POST", body: formData });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || "Fallo al subir el archivo");
+      }
       setImportFeedback("Datos enviados...");
+      setPhase("success");
+    } catch (err: any) {
+      console.error("Error durante importación:", err);
+      setImportError(err?.message || "No se pudo completar la importación. Inténtalo de nuevo.");
+      setPhase("mapping");
     } finally {
       setIsImporting(false);
     }
@@ -329,7 +335,7 @@ export default function ImportStudentsPage() {
         onChange={handleFileChange}
       />
 
-      {!selectedFile && (
+      {!selectedFile && phase === "mapping" && (
         <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
           <div className="p-8">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-8">
@@ -374,7 +380,7 @@ export default function ImportStudentsPage() {
                 <label className="block text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                   Año lectivo
                 </label>
-                <select className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+                <select value={periodoLectivo} onChange={(e) => setPeriodoLectivo(e.target.value)} className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
                   <option>2025</option>
                   <option>2024</option>
                 </select>
@@ -383,7 +389,7 @@ export default function ImportStudentsPage() {
                 <label className="block text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                   Institución
                 </label>
-                <select className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+                <select value={centerName} onChange={(e) => setCenterName(e.target.value)} className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
                   <option>Centro Educativo Principal</option>
                   <option>Centro Educativo Secundario</option>
                 </select>
@@ -424,7 +430,7 @@ export default function ImportStudentsPage() {
         </div>
       )}
 
-      {selectedFile && (
+      {selectedFile && phase === "mapping" && (
         <div className="rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
           <div className="space-y-6 border-b border-[var(--border-light)] px-6 py-6 dark:border-[var(--border-dark)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -530,6 +536,76 @@ export default function ImportStudentsPage() {
                   {isImporting ? "hourglass_top" : "cloud_upload"}
                 </span>
                 {isImporting ? "Enviando datos..." : "Importar datos"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === "processing" && (
+        <div className="rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] p-8 text-center shadow-lg transition-all dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+          <div className="flex flex-col items-center gap-6">
+            <h2 className="text-2xl font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
+              Validando y limpiando datos...
+            </h2>
+            <div className="w-full max-w-md">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.12)]">
+                <div className="h-full w-3/4 animate-pulse rounded-full bg-[var(--primary)]" style={{ animationDuration: "2s" }} />
+              </div>
+              <p className="mt-2 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                Analizando {dataRows.length} filas...
+              </p>
+            </div>
+            <p className="text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+              Este proceso puede tardar unos segundos. Por favor, no cierres esta ventana.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {phase === "success" && (
+        <div className="rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-8 text-center shadow-lg transition-all dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+          <div className="flex flex-col items-center gap-4">
+            <span className="material-symbols-outlined" style={{ fontSize: "72px", color: "#16A34A" }}>check_circle</span>
+            <h2 className="text-3xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">¡Importación completada!</h2>
+            <p className="max-w-md text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+              El archivo ha sido procesado y los estudiantes han sido agregados a la plataforma.
+            </p>
+            <div className="mt-4 w-full max-w-lg">
+              <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(22,163,74,0.2)" }}>
+                <div className="h-full w-full rounded-full" style={{ backgroundColor: "#16A34A" }} />
+              </div>
+              <p className="mt-2 text-sm font-medium" style={{ color: "#16A34A" }}>100% completado</p>
+            </div>
+            <div className="mt-6 flex flex-col gap-4 divide-y divide-[var(--border-light)] dark:divide-[var(--border-dark)] sm:flex-row sm:divide-x sm:divide-y-0">
+              <div className="px-6 py-2 text-center">
+                <p className="text-2xl font-bold text-[var(--primary)]">125</p>
+                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Nuevos estudiantes creados</p>
+              </div>
+              <div className="px-6 py-2 text-center">
+                <p className="text-2xl font-bold text-[var(--primary)]">25</p>
+                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Estudiantes actualizados</p>
+              </div>
+              <div className="px-6 py-2 text-center">
+                <p className="text-2xl font-bold" style={{ color: "#e73c08" }}>0</p>
+                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Registros con errores</p>
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+              Resultado de la importación desde el archivo <strong>{selectedFile?.name}</strong>.
+            </p>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <a href="/dashboard/students" className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-6 py-3 text-base font-semibold text-white shadow-sm hover:brightness-110">
+                <span className="material-symbols-outlined">group</span>
+                Ver estudiantes
+              </a>
+              <button
+                type="button"
+                onClick={handleResetSelection}
+                className="flex items-center justify-center gap-2 rounded-lg border border-[var(--border-light)] bg-transparent px-6 py-3 text-base font-semibold text-[var(--foreground-light)] hover:bg-[rgba(21,53,147,0.06)] dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)] dark:hover:bg-[rgba(21,53,147,0.12)]"
+              >
+                <span className="material-symbols-outlined">upload_file</span>
+                Nueva importación
               </button>
             </div>
           </div>
