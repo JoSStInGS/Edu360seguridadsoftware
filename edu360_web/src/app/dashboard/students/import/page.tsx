@@ -33,7 +33,6 @@ const FIELD_MAPPINGS: FieldMapping[] = [
   { label: "Fecha de nacimiento" },
 ];
 
-const PLACEHOLDER_ROWS = [0, 1];
 const COLUMN_PLACEHOLDER = "Selecciona una columna";
 
 function formatFileSize(bytes: number) {
@@ -298,9 +297,13 @@ export default function ImportStudentsPage() {
       }
       setImportFeedback("Datos enviados...");
       setPhase("success");
-    } catch (err: any) {
-      console.error("Error durante importación:", err);
-      setImportError(err?.message || "No se pudo completar la importación. Inténtalo de nuevo.");
+    } catch (error) {
+      console.error("Error durante importación:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la importación. Inténtalo de nuevo.";
+      setImportError(message);
       setPhase("mapping");
     } finally {
       setIsImporting(false);
