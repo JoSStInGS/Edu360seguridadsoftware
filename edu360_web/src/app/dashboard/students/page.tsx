@@ -1,28 +1,56 @@
 import Link from "next/link";
+import { loadStudents } from "@/app/lib/student-storage";
 
-type Student = {
-  name: string;
-  id: string;
-  birthDate: string;
-  level: string;
-  group: string;
-  status: "Activo" | "Inactivo";
+export const dynamic = "force-dynamic";
+
+function formatBirthDate(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  try {
+    return new Intl.DateTimeFormat("es-CR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return value;
+  }
+}
+
+type StudentsPageProps = {
+  searchParams?: {
+    center?: string;
+    periodo?: string;
+  };
 };
 
-const STUDENTS: Student[] = [
-  { name: "Sophia Clark", id: "123456789", birthDate: "2005-03-15", level: "High School", group: "Class A", status: "Activo" },
-  { name: "Liam Carter", id: "987654321", birthDate: "2006-07-22", level: "High School", group: "Class B", status: "Activo" },
-  { name: "Olivia Bennett", id: "456789123", birthDate: "2004-11-08", level: "High School", group: "Class C", status: "Inactivo" },
-  { name: "Noah Foster", id: "321987654", birthDate: "2005-05-19", level: "High School", group: "Class A", status: "Activo" },
-];
+export default async function StudentsPage({ searchParams }: StudentsPageProps) {
+  const centerName = searchParams?.center?.trim() || "Centro Educativo Principal";
+  const periodoLectivo = searchParams?.periodo?.trim() || "2025";
+  const { students } = await loadStudents(centerName, periodoLectivo);
 
-export default function StudentsPage() {
-  const hasStudents = STUDENTS.length > 0;
+  const hasStudents = students.length > 0;
+  const activeCount = students.filter(
+    (student) => (student.status ?? "Activo") === "Activo",
+  ).length;
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <div className="mb-6 xl:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 xl:mb-8 flex flex-col gap-2">
         <h2 className="text-3xl font-bold">Estudiantes</h2>
+        <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+          Centro educativo: <span className="font-semibold">{centerName}</span> · Periodo lectivo: <span className="font-semibold">{periodoLectivo}</span> · Total estudiantes: <span className="font-semibold">{students.length}</span> (Activos: <span className="font-semibold">{activeCount}</span>)
+        </p>
+      </div>
+
+      <div className="mb-6 xl:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-4">
           <Link
             href="/dashboard/students/import"
@@ -37,6 +65,7 @@ export default function StudentsPage() {
           </button>
         </div>
       </div>
+
       <div className="mb-6 xl:mb-8 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {["Año lectivo", "Nivel", "Grupo", "Especialidad", "Estado"].map((label) => (
@@ -61,7 +90,6 @@ export default function StudentsPage() {
             search
           </span>
         </div>
-
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
@@ -82,50 +110,59 @@ export default function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {STUDENTS.map((student) => (
-                  <tr key={student.id} className="border-b border-[var(--border-light)] bg-transparent text-[var(--foreground-light)] last:border-0 dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)]">
-                    <td className="whitespace-nowrap px-6 py-4 font-medium">{student.name}</td>
-                    <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.id}</td>
-                    <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.birthDate}</td>
-                    <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.level}</td>
-                    <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.group}</td>
-                    <td className="px-6 py-4">
-                      {student.status === "Activo" ? (
-                        <span className="rounded-full bg-[rgba(7,136,61,0.15)] px-2 py-1 text-xs font-semibold text-[var(--accent-light)] dark:bg-[rgba(56,161,105,0.25)] dark:text-[var(--accent-dark)]">
-                          Activo
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-[rgba(107,114,128,0.2)] px-2 py-1 text-xs font-semibold text-[var(--muted-light)] dark:bg-[rgba(107,114,128,0.35)] dark:text-[var(--muted-dark)]">
-                          Inactivo
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                        {[
-                          { icon: "visibility", label: "Ver" },
-                          { icon: "edit", label: "Editar" },
-                          { icon: student.status === "Activo" ? "archive" : "unarchive", label: "Archivo" },
-                        ].map((action) => (
-                          <button
-                            key={action.icon}
-                            className="rounded-full p-1 transition hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)]"
-                            aria-label={action.label}
-                          >
-                            <span className="material-symbols-outlined text-lg">{action.icon}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {students.map((student) => {
+                  const status = student.status ?? "Activo";
+                  return (
+                    <tr
+                      key={student.id}
+                      className="border-b border-[var(--border-light)] bg-transparent text-[var(--foreground-light)] last:border-0 dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)]"
+                    >
+                      <td className="whitespace-nowrap px-6 py-4 font-medium">{student.name}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.id}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{formatBirthDate(student.birthDate)}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.level ?? "-"}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.group ?? "-"}</td>
+                      <td className="px-6 py-4">
+                        {status === "Activo" ? (
+                          <span className="rounded-full bg-[rgba(7,136,61,0.15)] px-2 py-1 text-xs font-semibold text-[var(--accent-light)] dark:bg-[rgba(56,161,105,0.25)] dark:text-[var(--accent-dark)]">
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-[rgba(107,114,128,0.2)] px-2 py-1 text-xs font-semibold text-[var(--muted-light)] dark:bg-[rgba(107,114,128,0.35)] dark:text-[var(--muted-dark)]">
+                            Inactivo
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                          {[
+                            { icon: "visibility", label: "Ver" },
+                            { icon: "edit", label: "Editar" },
+                            { icon: status === "Activo" ? "archive" : "unarchive", label: status === "Activo" ? "Archivar" : "Restaurar" },
+                          ].map((action) => (
+                            <button
+                              key={action.icon}
+                              className="rounded-full p-1 transition hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)]"
+                              aria-label={action.label}
+                            >
+                              <span className="material-symbols-outlined text-lg">{action.icon}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <div className="flex items-center justify-between px-6 py-4 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
               <span>
-                Mostrando <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">1</span> a
-                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> 10 </span>de
-                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> 100</span>
+                Mostrando
+                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> 1 </span>
+                a
+                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> {Math.min(students.length, 10)}</span>
+                de
+                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> {students.length}</span>
               </span>
               <div className="flex items-center gap-1">
                 {[
@@ -139,12 +176,13 @@ export default function StudentsPage() {
                 ].map((item) => (
                   <button
                     key={item.label ?? item.icon}
-                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${item.isActive
-                      ? "bg-[var(--primary)] text-white"
-                      : item.disabled
-                        ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
-                        : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
-                      }`}
+                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${
+                      item.isActive
+                        ? "bg-[var(--primary)] text-white"
+                        : item.disabled
+                          ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
+                          : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                    }`}
                     disabled={item.disabled}
                   >
                     {item.icon ? <span className="material-symbols-outlined text-lg">{item.icon}</span> : item.label}
@@ -157,7 +195,7 @@ export default function StudentsPage() {
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
             <span className="material-symbols-outlined text-4xl text-[var(--primary)]">groups</span>
             <p className="text-lg font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              No hay estudiantes registrados en este momento.
+              No hay estudiantes registrados para este centro educativo y periodo.
             </p>
             <p>Importe un archivo o cree un estudiante para comenzar.</p>
             <Link

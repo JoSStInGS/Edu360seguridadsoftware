@@ -1,12 +1,12 @@
 import admin from "firebase-admin";
 
-function getServiceAccount() {
+function getServiceAccount(): admin.ServiceAccount | undefined {
   const inline =
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
   if (inline) {
-    return JSON.parse(inline);
+    return JSON.parse(inline) as admin.ServiceAccount;
   }
 
   return undefined; // fallback a ADC
@@ -38,7 +38,7 @@ export function ensureAdminApp() {
 
   admin.initializeApp({
     credential: svc
-      ? admin.credential.cert(svc as any)
+      ? admin.credential.cert(svc)
       : admin.credential.applicationDefault(),
     projectId,
     storageBucket: bucketName,
