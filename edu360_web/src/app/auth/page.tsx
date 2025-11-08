@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/auth/hooks/useAuth'
+import { getUserRole } from '@/app/auth/services/auth'
 import {
   signInWithMicrosoft,
   signInWithGoogle,
@@ -20,17 +21,29 @@ export default function LoginPage() {
   const [loadingGoogle, setLoadingGoogle] = useState(false)
 
   useEffect(() => {
-    if (user) {
-      router.replace('/welcome')
+    let active = true
+    const check = async () => {
+      if (user) {
+        const role = await getUserRole(user.uid)
+        if (!active) return
+        if (!role) {
+          router.replace('/auth/complete-profile')
+        } else {
+          router.replace('/welcome')
+        }
+      }
     }
+    void check()
+    return () => { active = false }
   }, [user, router])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoadingEmail(true)
     try {
-      await signInWithEmail(email, password)
-      router.push('/welcome')
+      const u = await signInWithEmail(email, password)
+      const role = await getUserRole(u.uid)
+      router.push(role ? '/welcome' : '/auth/complete-profile')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión'
       alert(message)
@@ -44,7 +57,8 @@ export default function LoginPage() {
     try {
       const u = await signInWithMicrosoft()
       if (u) {
-        router.push('/welcome')
+        const role = await getUserRole(u.uid)
+        router.push(role ? '/welcome' : '/auth/complete-profile')
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión con Microsoft'
@@ -59,7 +73,8 @@ export default function LoginPage() {
     try {
       const u = await signInWithGoogle()
       if (u) {
-        router.push('/welcome')
+        const role = await getUserRole(u.uid)
+        router.push(role ? '/welcome' : '/auth/complete-profile')
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión con Google'

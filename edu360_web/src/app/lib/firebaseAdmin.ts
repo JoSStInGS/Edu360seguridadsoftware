@@ -53,3 +53,8 @@ export function getAdminBucket() {
   const bucketName = getBucketName();
   return admin.storage(app).bucket(bucketName);
 }
+
+export function getAdminDb() {
+  const app = ensureAdminApp();
+  return admin.firestore(app);
+}

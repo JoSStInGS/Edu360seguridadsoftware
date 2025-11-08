@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { promises as fs } from "fs";
 import path from "path";
-import { getAdminBucket } from "@/app/lib/firebaseAdmin";
+import { getAdminBucket, getAdminDb } from "@/app/lib/firebaseAdmin";
 import { sanitizeSegment } from "@/app/lib/sanitize";
 import {
   ColumnMapping,
@@ -121,6 +121,60 @@ export async function POST(request: Request) {
       responsePayload.studentsObject = `storage/${safeCenter}/${safePeriodo}/students.json`;
       responsePayload.warning =
         "No se pudo subir a Firebase Storage. Archivo guardado localmente. Verifique credenciales del servidor.";
+    }
+
+    // Persist in Firestore (admin) so retrieval can filter by centro/periodo
+    try {
+      const db = getAdminDb();
+      const institutionId =
+        (process.env.INSTITUTION_ID || process.env.NEXT_PUBLIC_INSTITUTION_ID || "default").trim();
+      const safeCenter = sanitizeSegment(centerName) || "Centro";
+      const safePeriodo = sanitizeSegment(periodoLectivo) || "Periodo";
+
+      const periodDocRef = db
+        .collection("institutions").doc(institutionId)
+        .collection("centers").doc(safeCenter)
+        .collection("periods").doc(safePeriodo);
+
+      // Upsert period metadata
+      await periodDocRef.set(
+        {
+          centerName,
+          periodoLectivo,
+          generatedAt: new Date().toISOString(),
+          studentsCount: students.length,
+        },
+        { merge: true },
+      );
+
+      // Batch write students into subcollection
+      const batch = db.batch();
+      const studentsCol = periodDocRef.collection("students");
+      for (const s of students) {
+        const docRef = studentsCol.doc(s.id);
+        batch.set(
+          docRef,
+          {
+            id: s.id,
+            name: s.name,
+            birthDate: s.birthDate ?? null,
+            level: s.level ?? null,
+            group: s.group ?? null,
+            status: s.status,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+      }
+      await batch.commit();
+
+      responsePayload.firestore = {
+        institutionId,
+        centerId: safeCenter,
+        periodId: safePeriodo,
+      };
+    } catch (fsErr) {
+      console.warn("[import] No se pudo guardar en Firestore:", fsErr);
     }
 
     revalidatePath("/dashboard/students");
