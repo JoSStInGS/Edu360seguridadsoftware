@@ -3,12 +3,22 @@
 import { useAuth } from '@/app/auth/hooks/useAuth'
 import { logout } from '@/app/auth/services/auth'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function WelcomePage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const [loggingOut, setLoggingOut] = useState(false);
+
+    useEffect(() => {
+        if (!loading) {
+            if (user) {
+                router.replace('/dashboard');
+            } else {
+                router.replace('/auth');
+            }
+        }
+    }, [loading, router, user]);
 
     const handleLogout = async () => {
         setLoggingOut(true);
@@ -25,16 +35,15 @@ export default function WelcomePage() {
     }
 
     return (
-        <div className="flex h-screen flex-col items-center justify-center gap-6">
-            <h1 className="text-2xl font-semibold">
-                Iniciaste sesion: {user?.email}
-            </h1>
+        <div className="flex h-screen flex-col items-center justify-center gap-6 text-[var(--muted-light)]">
+            <span className="material-symbols-outlined text-4xl text-[var(--primary)]">hourglass</span>
+            <p className="text-lg font-medium">Preparando tu tablero...</p>
             <button
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="rounded bg-[#0078D4] px-4 py-2 font-medium text-white hover:bg-[#005a9e] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
             >
-                {loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+                {loggingOut ? 'Cerrando sesión...' : 'Cancelar y volver al inicio de sesión'}
             </button>
         </div>
     );
