@@ -1,12 +1,13 @@
 import admin from "firebase-admin";
+import type { ServiceAccount } from "firebase-admin";
 
-function getServiceAccount(): admin.ServiceAccount | undefined {
+function getServiceAccount(): ServiceAccount | undefined {
   const inline =
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
   if (inline) {
-    return JSON.parse(inline) as admin.ServiceAccount;
+    return JSON.parse(inline) as ServiceAccount;
   }
 
   return undefined; // fallback a ADC
@@ -54,7 +55,9 @@ export function getAdminBucket() {
   return admin.storage(app).bucket(bucketName);
 }
 
-export function getAdminDb() {
+export function getAdminFirestore() {
   const app = ensureAdminApp();
   return admin.firestore(app);
 }
+
+export const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
