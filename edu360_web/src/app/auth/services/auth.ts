@@ -30,7 +30,7 @@ export async function signInWithMicrosoft(): Promise<User | null> {
         const cred = OAuthProvider.credentialFromResult(result);
         const accessToken = cred?.accessToken;
         console.log("Successful login with:", result.user.email, accessToken);
-        await saveUserIfFirstTime(result.user);
+        await ensureInitialUserDoc(result.user);
         return result.user;
     } catch (err: unknown) {
         // If popup is blocked, fallback to redirect
@@ -49,7 +49,7 @@ export async function signInWithMicrosoft(): Promise<User | null> {
 export async function signInWithGoogle(): Promise<User | null> {
     try {
         const result = await signInWithPopup(auth, googleProvider);
-        await saveUserIfFirstTime(result.user);
+        await ensureInitialUserDoc(result.user);
         return result.user;
     } catch (err: unknown) {
         if (typeof err === "object" && err && (err as { code?: string }).code === "auth/popup-blocked") {
@@ -65,7 +65,7 @@ export async function signInWithGoogle(): Promise<User | null> {
  */
 export async function signInWithEmail(email: string, password: string): Promise<User> {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    await saveUserIfFirstTime(cred.user);
+    await ensureInitialUserDoc(cred.user);
     return cred.user;
 }
 
@@ -110,10 +110,24 @@ export async function logout(): Promise<void> {
  * The document ID corresponds to the user's UID.
  * @param {User} user - Authenticated Firebase user
  */
-export async function saveUserIfFirstTime(user: User): Promise<void> {
+export async function ensureInitialUserDoc(user: User): Promise<void> {
     const ref = doc(db, "users", user.uid);
     const snapshot = await getDoc(ref);
     if (!snapshot.exists()) {
-        await setDoc(ref, { email: user.email, role: "profesor" });
+        await setDoc(ref, {
+            email: user.email ?? null,
+            displayName: user.displayName ?? null,
+            photoURL: user.photoURL ?? null,
+            provider: user.providerData?.[0]?.providerId ?? null,
+            createdAt: new Date().toISOString(),
+        });
     }
+}
+
+export async function getUserRole(userId: string): Promise<string | null> {
+    const ref = doc(db, "users", userId);
+    const snapshot = await getDoc(ref);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data() as { role?: string };
+    return data.role ?? null;
 }

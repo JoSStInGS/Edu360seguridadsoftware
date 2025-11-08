@@ -190,6 +190,7 @@ export async function POST(request: Request) {
     const rawMappings = form.get("mappings");
     const centerName = (form.get("centerName") as string) || "Centro";
     const periodoLectivo = (form.get("periodoLectivo") as string) || "Periodo";
+    const mappingsRaw = form.get("mappings");
 
     if (!(file instanceof File)) {
       return NextResponse.json(

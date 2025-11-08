@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
     try {
       await registerWithEmail(email, password)
-      router.push('/welcome')
+      router.push('/auth/complete-profile')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al crear la cuenta'
       setError(message)
