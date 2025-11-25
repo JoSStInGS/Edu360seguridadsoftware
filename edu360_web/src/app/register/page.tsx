@@ -3,12 +3,24 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useAuth } from '@/app/auth/hooks/useAuth'
+import { db } from '@/app/lib/firebase'
+import { doc, setDoc } from 'firebase/firestore'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [role, setRole] = useState<'admin' | 'professor' | null>(null)
   const [activationCode, setActivationCode] = useState('')
   const [step, setStep] = useState(1)
+
+  // Error States
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    role?: boolean;
+    activationCode?: boolean;
+    selectedCenter?: boolean;
+  }>({})
 
   // Searchable Select State
   const [centerQuery, setCenterQuery] = useState('')
@@ -53,8 +65,27 @@ export default function RegisterPage() {
   const [isValidating, setIsValidating] = useState(false)
 
   const handleContinue = async () => {
-    if (!role || !activationCode || !selectedCenter) {
-      alert("Por favor completa todos los campos")
+    setValidationError(null)
+    setFieldErrors({})
+
+    const newFieldErrors: { role?: boolean; activationCode?: boolean; selectedCenter?: boolean } = {}
+    let hasError = false
+
+    if (!role) {
+      newFieldErrors.role = true
+      hasError = true
+    }
+    if (!activationCode) {
+      newFieldErrors.activationCode = true
+      hasError = true
+    }
+    if (!selectedCenter) {
+      newFieldErrors.selectedCenter = true
+      hasError = true
+    }
+
+    if (hasError) {
+      setFieldErrors(newFieldErrors)
       return
     }
 
@@ -75,15 +106,32 @@ export default function RegisterPage() {
       const data = await response.json()
 
       if (data.valid) {
-        // Proceed to step 2
-        console.log("Validation successful")
-        setStep(2)
+        // If user is already logged in (Complete Profile flow), update their profile directly
+        if (user) {
+          try {
+            await setDoc(doc(db, "users", user.uid), {
+              role: role,
+              center: selectedCenter,
+              updatedAt: new Date().toISOString(),
+            }, { merge: true })
+
+            router.push('/welcome')
+          } catch (error) {
+            console.error("Error updating profile:", error)
+            setValidationError("Error al actualizar el perfil. Por favor intenta de nuevo.")
+          }
+        } else {
+          // Normal registration flow: Proceed to step 2
+          console.log("Validation successful")
+          setStep(2)
+        }
       } else {
-        alert(data.message || "Código inválido")
+        // Generic error for security
+        setValidationError("Invalid")
       }
     } catch (error) {
       console.error("Validation error:", error)
-      alert("Ocurrió un error al validar el código")
+      setValidationError("Error")
     } finally {
       setIsValidating(false)
     }
@@ -156,6 +204,17 @@ export default function RegisterPage() {
           <p className="text-[var(--text-color)] opacity-70 text-base font-normal">Para comenzar, por favor configura tu perfil.</p>
         </div>
 
+        {/* Validation Error Banner */}
+        {validationError && (
+          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 flex gap-3 items-start">
+            <span className="material-symbols-outlined text-red-500 mt-0.5">error</span>
+            <div>
+              <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">Error de validación</h3>
+              <p className="text-sm text-red-700 dark:text-red-300">La información proporcionada no es válida. Por favor, revisa tus datos.</p>
+            </div>
+          </div>
+        )}
+
         <div className="w-full flex flex-col gap-6">
 
           {/* Role Selection */}
@@ -163,41 +222,54 @@ export default function RegisterPage() {
             <h2 className="text-[var(--text-color)] text-lg font-bold mb-3">Selecciona tu rol</h2>
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => setRole('admin')}
+                onClick={() => {
+                  setRole('admin')
+                  setFieldErrors(prev => ({ ...prev, role: false }))
+                }}
                 className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 group ${role === 'admin'
                   ? 'border-[var(--button-bg)] bg-[var(--button-bg)]/10 ring-2 ring-[var(--button-bg)]/20'
-                  : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
+                  : fieldErrors.role
+                    ? 'border-red-500 bg-red-50/10'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
                   }`}
               >
                 <span
-                  className={`material-symbols-outlined ${role === 'admin' ? 'text-[var(--button-bg)]' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
+                  className={`material-symbols-outlined ${role === 'admin' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
                   style={{ fontSize: '32px' }}
                 >
                   corporate_fare
                 </span>
-                <p className={`text-sm font-bold ${role === 'admin' ? 'text-[var(--button-bg)]' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
+                <p className={`text-sm font-bold ${role === 'admin' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
                   Administrativo
                 </p>
               </button>
 
               <button
-                onClick={() => setRole('professor')}
+                onClick={() => {
+                  setRole('professor')
+                  setFieldErrors(prev => ({ ...prev, role: false }))
+                }}
                 className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 group ${role === 'professor'
                   ? 'border-[var(--button-bg)] bg-[var(--button-bg)]/10 ring-2 ring-[var(--button-bg)]/20'
-                  : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
+                  : fieldErrors.role
+                    ? 'border-red-500 bg-red-50/10'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
                   }`}
               >
                 <span
-                  className={`material-symbols-outlined ${role === 'professor' ? 'text-[var(--button-bg)]' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
+                  className={`material-symbols-outlined ${role === 'professor' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
                   style={{ fontSize: '32px' }}
                 >
                   person
                 </span>
-                <p className={`text-sm font-bold ${role === 'professor' ? 'text-[var(--button-bg)]' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
+                <p className={`text-sm font-bold ${role === 'professor' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
                   Profesor
                 </p>
               </button>
             </div>
+            {fieldErrors.role && (
+              <p className="text-red-500 text-xs mt-2 font-medium">Por favor selecciona un rol</p>
+            )}
           </div>
 
           {/* Activation Code */}
@@ -206,13 +278,22 @@ export default function RegisterPage() {
               Código de Activación
             </label>
             <input
-              className="w-full px-4 py-3 bg-transparent border-b-2 border-[var(--text-color)] text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none focus:border-[var(--button-bg)] transition-colors"
+              className={`w-full px-4 py-3 bg-transparent border-b-2 text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none transition-colors ${fieldErrors.activationCode
+                ? 'border-red-500 focus:border-red-500'
+                : 'border-[var(--text-color)] focus:border-[var(--button-bg)]'
+                }`}
               id="activation-code"
               placeholder="Ingresa el código proporcionado"
               type="text"
               value={activationCode}
-              onChange={(e) => setActivationCode(e.target.value)}
+              onChange={(e) => {
+                setActivationCode(e.target.value)
+                setFieldErrors(prev => ({ ...prev, activationCode: false }))
+              }}
             />
+            {fieldErrors.activationCode && (
+              <p className="text-red-500 text-xs mt-1 font-medium">Campo requerido</p>
+            )}
           </div>
 
           {/* Education Center (Searchable Select) */}
@@ -224,13 +305,17 @@ export default function RegisterPage() {
               <input
                 id="education-center"
                 type="text"
-                className="w-full px-4 py-3 bg-transparent border-b-2 border-[var(--text-color)] text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none focus:border-[var(--button-bg)] transition-colors pr-10"
+                className={`w-full px-4 py-3 bg-transparent border-b-2 text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none transition-colors pr-10 ${fieldErrors.selectedCenter
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-[var(--text-color)] focus:border-[var(--button-bg)]'
+                  }`}
                 placeholder="Buscar centro educativo..."
                 value={selectedCenter ? selectedCenter : centerQuery}
                 onChange={(e) => {
                   setCenterQuery(e.target.value)
                   setSelectedCenter('') // Clear selection when typing
                   setIsCenterOpen(true)
+                  setFieldErrors(prev => ({ ...prev, selectedCenter: false }))
                 }}
                 onFocus={() => {
                   setIsCenterOpen(true)
@@ -240,6 +325,9 @@ export default function RegisterPage() {
                   }
                 }}
               />
+              {fieldErrors.selectedCenter && (
+                <p className="text-red-500 text-xs mt-1 font-medium absolute -bottom-5 left-0">Campo requerido</p>
+              )}
               <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-[var(--text-color)] opacity-50">
                 <span className="material-symbols-outlined">unfold_more</span>
               </div>
@@ -261,6 +349,7 @@ export default function RegisterPage() {
                         setSelectedCenter(center)
                         setCenterQuery('')
                         setIsCenterOpen(false)
+                        setFieldErrors(prev => ({ ...prev, selectedCenter: false }))
                       }}
                     >
                       {center}

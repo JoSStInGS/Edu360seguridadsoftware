@@ -27,7 +27,7 @@ export default function LoginPage() {
         const role = await getUserRole(user.uid)
         if (!active) return
         if (!role) {
-          router.replace('/auth/complete-profile')
+          router.replace('/register')
         } else {
           router.replace('/welcome')
         }

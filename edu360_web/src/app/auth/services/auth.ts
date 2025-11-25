@@ -131,3 +131,5 @@ export async function getUserRole(userId: string): Promise<string | null> {
     const data = snapshot.data() as { role?: string };
     return data.role ?? null;
 }
+
+
