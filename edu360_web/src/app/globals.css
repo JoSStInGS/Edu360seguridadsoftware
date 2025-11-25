@@ -15,9 +15,9 @@
     --light-gray: #f8f9fb;
     --dark-gray: #6b7280;
     --text-color: #111827;
-    --primary: #153593;
+    --primary: #135bec;
     --background-light: #f6f6f8;
-    --background-dark: #111521;
+    --background-dark: #101622;
     --foreground-light: #0e111b;
     --foreground-dark: #f8f9fb;
     --card-light: #ffffff;
@@ -35,6 +35,9 @@
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
+    --color-primary: var(--primary);
+    --color-background-light: var(--background-light);
+    --color-background-dark: var(--background-dark);
 }
 
 @media (prefers-color-scheme: dark) {
