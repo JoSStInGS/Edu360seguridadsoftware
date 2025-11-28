@@ -9,7 +9,6 @@ import {
   signInWithMicrosoft,
   signInWithGoogle,
   signInWithEmail,
-  logout,
 } from '@/app/auth/services/auth'
 import { auth } from '@/app/lib/firebase'
 import { signOut, getRedirectResult } from 'firebase/auth'

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/auth/hooks/useAuth";
@@ -154,17 +155,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen bg-[var(--background-light)] text-[var(--foreground-light)] dark:bg-[var(--background-dark)] dark:text-[var(--foreground-dark)]">
         <aside
-          className={`hidden ${
-            isDesktopSidebarVisible ? "lg:flex" : "lg:hidden"
-          } fixed inset-y-0 left-0 w-64 z-30 flex-col justify-between border-r border-[var(--border-light)] bg-[var(--card-light)] p-6 dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)] transition-transform duration-200`}
+          className={`hidden ${isDesktopSidebarVisible ? "lg:flex" : "lg:hidden"
+            } fixed inset-y-0 left-0 w-64 z-30 flex-col justify-between border-r border-[var(--border-light)] bg-[var(--card-light)] p-6 dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)] transition-transform duration-200`}
         >
           {renderSidebarContent()}
         </aside>
 
         <div
-          className={`flex flex-1 flex-col ${
-            isDesktopSidebarVisible ? "lg:ml-64" : ""
-          }`}
+          className={`flex flex-1 flex-col ${isDesktopSidebarVisible ? "lg:ml-64" : ""
+            }`}
           style={{ minWidth: 0 }}
         >
           <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-[rgba(21,53,147,0.1)] dark:border-border-dark bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm px-2">
@@ -212,10 +211,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <button className="p-2.5 rounded-full hover:bg-primary/10 dark:hover:bg-primary/20 text-muted-light dark:text-muted-dark hover:text-primary dark:hover:text-primary transition-colors">
                 <span className="material-symbols-outlined">notifications</span>
               </button>
-              <img
+              <Image
                 alt="User avatar"
                 className="h-10 w-10 rounded-full border-2 border-primary"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXKY0aWClwmlwPZuyc0MzFDQ8VHmXtuxXoulGBFQCjs1ZES2JLjVJ2ay3lFGMizmb6N4JbxTAa-0imh1aweH28l1AZjm1K_AXzy9VikH1m8MzIYmMcGRkwp6tTyaBcImKc0B0ag3xo8qjMI55Sxv4MASVpKER_2NZjrn5Ib8a74MLhLfpSbh_itlPn0-B2OkwpOcvKT3T7zQB6rPFK2t8TJiVuyfVD_r9I7PXKFB9ytVqzQxJkLPROlxNUna2pmgyWYvzsWuUvrDg"
+                width={40}
+                height={40}
               />
             </div>
           </header>

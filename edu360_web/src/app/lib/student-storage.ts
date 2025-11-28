@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { sanitizeSegment } from "./sanitize";
-import { getAdminDb } from "./firebaseAdmin";
+import { getAdminFirestore } from "./firebaseAdmin";
 import {
   StoredStudent,
   buildStudentsFromCsv,
@@ -62,14 +62,11 @@ async function loadFromFirestore(
   periodoLectivo: string,
 ): Promise<StoredStudentPayload | null> {
   try {
-    const db = getAdminDb();
-    const institutionId =
-      (process.env.INSTITUTION_ID || process.env.NEXT_PUBLIC_INSTITUTION_ID || "default").trim();
+    const db = getAdminFirestore();
     const safeCenter = sanitizeSegment(centerName) || "Centro";
     const safePeriodo = sanitizeSegment(periodoLectivo) || "Periodo";
 
     const periodRef = db
-      .collection("institutions").doc(institutionId)
       .collection("centers").doc(safeCenter)
       .collection("periods").doc(safePeriodo);
 
@@ -87,7 +84,7 @@ async function loadFromFirestore(
         birthDate: d.birthDate ? String(d.birthDate) : undefined,
         level: d.level ? String(d.level) : undefined,
         group: d.group ? String(d.group) : undefined,
-        status: (d.status as any) === "Inactivo" ? "Inactivo" : "Activo",
+        status: ((d.status as string) === "Inactivo" ? "Inactivo" : "Activo") as "Activo" | "Inactivo",
       }))
       .filter((s) => s.id && s.name)
       .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));

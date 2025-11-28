@@ -1,40 +1,96 @@
+'use client'
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { loadStudents } from "@/app/lib/student-storage";
+import { useAuth } from "@/app/auth/hooks/useAuth";
 
-export const dynamic = "force-dynamic";
-
-function formatBirthDate(value?: string) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  try {
-    return new Intl.DateTimeFormat("es-CR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(date);
-  } catch {
-    return value;
-  }
-}
-
-type StudentsPageProps = {
-  searchParams?: {
-    center?: string;
-    periodo?: string;
-  };
+type Student = {
+  id: string;
+  ced: string;
+  name: string;
+  lastName1: string;
+  lastName2: string;
+  birthdate?: string;
+  level?: string;
+  secction?: string;
+  status?: string;
+  specialty?: string;
 };
 
-export default async function StudentsPage({ searchParams }: StudentsPageProps) {
-  const centerName = searchParams?.center?.trim() || "Centro Educativo Principal";
-  const periodoLectivo = searchParams?.periodo?.trim() || "2025";
-  const { students } = await loadStudents(centerName, periodoLectivo);
+function calculateAge(birthdate?: string) {
+  if (!birthdate) return "-";
+
+  let birth: Date;
+
+  // Check for DD/MM/YYYY format (e.g., 28/09/2012)
+  const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+  const match = birthdate.match(ddmmyyyy);
+
+  if (match) {
+    // Note: Month is 0-indexed in Date constructor
+    birth = new Date(parseInt(match[3], 10), parseInt(match[2], 10) - 1, parseInt(match[1], 10));
+  } else {
+    // Fallback to standard parsing
+    birth = new Date(birthdate);
+  }
+
+  if (Number.isNaN(birth.getTime())) return "-";
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+export default function StudentsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (!user) return;
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch("/api/students", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch students");
+        }
+
+        const data = await response.json();
+        setStudents(data.students || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    if (!authLoading) {
+      if (user) {
+        fetchStudents();
+      } else {
+        setLoadingData(false);
+      }
+    }
+  }, [user, authLoading]);
+
+  if (authLoading || loadingData) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary)] border-t-transparent"></div>
+      </div>
+    );
+  }
 
   const hasStudents = students.length > 0;
   const activeCount = students.filter(
@@ -43,14 +99,13 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <div className="mb-6 xl:mb-8 flex flex-col gap-2">
-        <h2 className="text-3xl font-bold">Estudiantes</h2>
-        <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-          Centro educativo: <span className="font-semibold">{centerName}</span> · Periodo lectivo: <span className="font-semibold">{periodoLectivo}</span> · Total estudiantes: <span className="font-semibold">{students.length}</span> (Activos: <span className="font-semibold">{activeCount}</span>)
-        </p>
-      </div>
-
       <div className="mb-6 xl:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-bold">Estudiantes</h2>
+          <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+            Periodo lectivo: <span className="font-semibold">2025</span> · Total estudiantes: <span className="font-semibold">{students.length}</span> (Activos: <span className="font-semibold">{activeCount}</span>)
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-4">
           <Link
             href="/dashboard/students/import"
@@ -99,57 +154,28 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
               <thead className="bg-[rgba(15,23,42,0.04)] text-xs uppercase text-[var(--muted-light)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[var(--muted-dark)]">
                 <tr>
                   <th scope="col" className="px-6 py-3 font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
+                    Cedula
+                  </th>
+                  <th scope="col" className="px-6 py-3 font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                     Nombre completo
                   </th>
-                  <th scope="col" className="px-6 py-3 font-medium">ID</th>
-                  <th scope="col" className="px-6 py-3 font-medium">Fecha de nacimiento</th>
-                  <th scope="col" className="px-6 py-3 font-medium">Nivel</th>
-                  <th scope="col" className="px-6 py-3 font-medium">Grupo</th>
-                  <th scope="col" className="px-6 py-3 font-medium">Estado</th>
-                  <th scope="col" className="px-6 py-3 text-right font-medium">Acciones</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Edad</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Seccion</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Especialidad</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student) => {
-                  const status = student.status ?? "Activo";
                   return (
                     <tr
                       key={student.id}
                       className="border-b border-[var(--border-light)] bg-transparent text-[var(--foreground-light)] last:border-0 dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)]"
                     >
-                      <td className="whitespace-nowrap px-6 py-4 font-medium">{student.name}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.id}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{formatBirthDate(student.birthDate)}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.level ?? "-"}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.group ?? "-"}</td>
-                      <td className="px-6 py-4">
-                        {status === "Activo" ? (
-                          <span className="rounded-full bg-[rgba(7,136,61,0.15)] px-2 py-1 text-xs font-semibold text-[var(--accent-light)] dark:bg-[rgba(56,161,105,0.25)] dark:text-[var(--accent-dark)]">
-                            Activo
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-[rgba(107,114,128,0.2)] px-2 py-1 text-xs font-semibold text-[var(--muted-light)] dark:bg-[rgba(107,114,128,0.35)] dark:text-[var(--muted-dark)]">
-                            Inactivo
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                          {[
-                            { icon: "visibility", label: "Ver" },
-                            { icon: "edit", label: "Editar" },
-                            { icon: status === "Activo" ? "archive" : "unarchive", label: status === "Activo" ? "Archivar" : "Restaurar" },
-                          ].map((action) => (
-                            <button
-                              key={action.icon}
-                              className="rounded-full p-1 transition hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)]"
-                              aria-label={action.label}
-                            >
-                              <span className="material-symbols-outlined text-lg">{action.icon}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.ced}</td>
+                      <td className="whitespace-nowrap px-6 py-4 font-medium">{`${student.name} ${student.lastName1} ${student.lastName2}`}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{calculateAge(student.birthdate)}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.secction ?? "-"}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.specialty ?? "-"}</td>
                     </tr>
                   );
                 })}
@@ -176,13 +202,12 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
                 ].map((item) => (
                   <button
                     key={item.label ?? item.icon}
-                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${
-                      item.isActive
-                        ? "bg-[var(--primary)] text-white"
-                        : item.disabled
-                          ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
-                          : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
-                    }`}
+                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${item.isActive
+                      ? "bg-[var(--primary)] text-white"
+                      : item.disabled
+                        ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
+                        : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                      }`}
                     disabled={item.disabled}
                   >
                     {item.icon ? <span className="material-symbols-outlined text-lg">{item.icon}</span> : item.label}
@@ -195,9 +220,9 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
             <span className="material-symbols-outlined text-4xl text-[var(--primary)]">groups</span>
             <p className="text-lg font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              No hay estudiantes registrados para este centro educativo y periodo.
+              No hay estudiantes cargados en el sistema.
             </p>
-            <p>Importe un archivo o cree un estudiante para comenzar.</p>
+            <p>Por favor, contacte al administrador o importe una lista de estudiantes.</p>
             <Link
               href="/dashboard/students/import"
               className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105"

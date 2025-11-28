@@ -81,7 +81,7 @@ export async function registerWithEmail(email: string, password: string): Promis
     }
 
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await saveUserIfFirstTime(cred.user);
+    await ensureInitialUserDoc(cred.user);
     return cred.user;
 }
 

@@ -15,7 +15,7 @@ export async function GET() {
         }));
 
         return NextResponse.json({ centers });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: "Error fetching centers" },
             { status: 500 }
