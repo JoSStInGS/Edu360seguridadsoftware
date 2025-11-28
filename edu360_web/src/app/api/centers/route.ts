@@ -9,7 +9,10 @@ export async function GET() {
         const centersRef = db.collection("centers");
         const snapshot = await centersRef.get();
 
-        const centers = snapshot.docs.map((doc) => doc.data().name);
+        const centers = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name
+        }));
 
         return NextResponse.json({ centers });
     } catch (error) {

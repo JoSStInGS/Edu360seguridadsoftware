@@ -1,204 +1,444 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/app/auth/hooks/useAuth";
-import { db } from "@/app/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { sanitizeSegment } from "@/app/lib/sanitize";
-
-type Role = "admin" | "professor";
+import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useAuth } from '@/app/auth/hooks/useAuth'
+import { db } from '@/app/lib/firebase'
+import { doc, setDoc } from 'firebase/firestore'
+import { auth } from '@/app/lib/firebase'
+import { signOut } from 'firebase/auth'
+import { GoogleButton, MicrosoftButton } from '@/app/auth/components/SocialButtons'
+import { Input } from '@/app/components/Input'
+import { Button } from '@/app/components/Button'
+import { SearchableSelect } from '@/app/components/SearchableSelect'
+import { registerWithEmail, signInWithGoogle, signInWithMicrosoft } from '@/app/auth/services/auth'
 
 export default function CompleteProfilePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const params = useSearchParams();
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [role, setRole] = useState<'admin' | 'professor' | null>(null)
+  const [activationCode, setActivationCode] = useState('')
+  const [step, setStep] = useState(1)
 
-  const [role, setRole] = useState<Role | null>(null);
-  const [centerName, setCenterName] = useState(
-    params.get("center")?.trim() || "Centro Educativo Principal",
-  );
-  const [code, setCode] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Error States
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    role?: boolean;
+    activationCode?: boolean;
+    selectedCenter?: boolean;
+  }>({})
 
-  const institutionId = useMemo(
-    () => process.env.NEXT_PUBLIC_INSTITUTION_ID?.trim() || "default",
-    [],
-  );
+  // Step 2 State
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [registerLoading, setRegisterLoading] = useState(false)
+
+  // Searchable Select State
+  const [selectedCenterId, setSelectedCenterId] = useState('')
+  const [selectedCenterName, setSelectedCenterName] = useState('')
+  const [centers, setCenters] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.replace("/auth");
+    const fetchCenters = async () => {
+      try {
+        const response = await fetch('/api/centers')
+        if (response.ok) {
+          const data = await response.json()
+          setCenters(data.centers)
+        } else {
+          console.error("Failed to fetch centers")
+        }
+      } catch (error) {
+        console.error("Error fetching centers:", error)
       }
     }
-  }, [loading, router, user]);
+    fetchCenters()
+  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!user) return;
+
+
+  const [isValidating, setIsValidating] = useState(false)
+
+  const handleContinue = async () => {
+    setValidationError(null)
+    setFieldErrors({})
+
+    const newFieldErrors: { role?: boolean; activationCode?: boolean; selectedCenter?: boolean } = {}
+    let hasError = false
+
     if (!role) {
-      setError("Selecciona un rol");
-      return;
+      newFieldErrors.role = true
+      hasError = true
     }
-    if (!code.trim()) {
-      setError("Ingresa un código de activación");
-      return;
+    if (!activationCode) {
+      newFieldErrors.activationCode = true
+      hasError = true
+    }
+    if (!selectedCenterId) {
+      newFieldErrors.selectedCenter = true
+      hasError = true
     }
 
-    setSubmitting(true);
+    if (hasError) {
+      setFieldErrors(newFieldErrors)
+      return
+    }
+
+    setIsValidating(true)
     try {
-      const ok = await verifyCode(centerName, code.trim(), role, institutionId);
-      if (!ok) {
-        setError(
-          "Código inválido o no coincide con el rol seleccionado. Verifica e intenta de nuevo.",
-        );
-        setSubmitting(false);
-        return;
-      }
-
-      const userRef = doc(db, "users", user.uid);
-      await setDoc(
-        userRef,
-        {
-          role,
-          center: centerName,
-          email: user.email ?? null,
-          displayName: user.displayName ?? null,
-          photoURL: user.photoURL ?? null,
-          provider: user.providerData?.[0]?.providerId ?? null,
-          updatedAt: new Date().toISOString(),
+      const response = await fetch('/api/validate-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        { merge: true },
-      );
+        body: JSON.stringify({
+          center: selectedCenterId, // Send ID for validation
+          code: activationCode,
+          role: role,
+        }),
+      })
 
-      router.replace("/welcome");
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Error al completar el registro";
-      setError(msg);
-      setSubmitting(false);
-    }
-  };
+      const data = await response.json()
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-color)] p-4">
-      <div className="w-full max-w-lg rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-            Configuración inicial de perfil
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-            Selecciona tu rol y valida tu código de activación.
-          </p>
-        </div>
+      if (data.valid) {
+        // If user is already logged in (Complete Profile flow), update their profile directly
+        if (user) {
+          try {
+            await setDoc(doc(db, "users", user.uid), {
+              role: role,
+              centerId: selectedCenterId, // Save ID
+              centerName: selectedCenterName, // Save Name for display convenience
+              updatedAt: new Date().toISOString(),
+            }, { merge: true })
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          <div>
-            <h2 className="pb-2 text-left text-base font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              Rol en la institución
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition ${role === "admin" ? "border-[var(--primary)] bg-[rgba(19,91,236,.05)]" : "border-[var(--border-light)] dark:border-[var(--border-dark)]"}`}>
-                <input
-                  type="radio"
-                  className="sr-only"
-                  name="role"
-                  value="admin"
-                  checked={role === "admin"}
-                  onChange={() => setRole("admin")}
-                />
-                <span className="material-symbols-outlined text-xl">corporate_fare</span>
-                <span>Administrativo</span>
-              </label>
-              <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition ${role === "professor" ? "border-[var(--primary)] bg-[rgba(19,91,236,.05)]" : "border-[var(--border-light)] dark:border-[var(--border-dark)]"}`}>
-                <input
-                  type="radio"
-                  className="sr-only"
-                  name="role"
-                  value="professor"
-                  checked={role === "professor"}
-                  onChange={() => setRole("professor")}
-                />
-                <span className="material-symbols-outlined text-xl">school</span>
-                <span>Profesor</span>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="pb-2 text-left text-base font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              Centro educativo
-            </label>
-            <input
-              type="text"
-              value={centerName}
-              onChange={(e) => setCenterName(e.target.value)}
-              placeholder="Nombre del centro"
-              className="mt-1 w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-            />
-          </div>
-
-          <div>
-            <label className="pb-2 text-left text-base font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              Código de activación
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">key</span>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Ingresa el código proporcionado"
-                className="w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] py-2 pl-10 pr-3 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-              />
-            </div>
-          </div>
-
-          {error && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-300">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-2 w-full rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Verificando..." : "Verificar y Continuar"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-async function verifyCode(
-  centerName: string,
-  code: string,
-  expectedRole: Role,
-  institutionId: string,
-): Promise<boolean> {
-  const safeCenter = sanitizeSegment(centerName) || "Centro";
-  const tryPaths = [
-    ["institutions", institutionId, "centers", safeCenter, "users", "register_codes", code],
-    ["centers", safeCenter, "users", "register_codes", code],
-  ];
-
-  for (const p of tryPaths) {
-    const ref = doc(db, ...p);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const data = snap.data() as { user_type?: string };
-      const type = (data.user_type || "").toLowerCase();
-      if (type === expectedRole) return true;
-      return false;
+            router.push('/welcome')
+          } catch (error) {
+            console.error("Error updating profile:", error)
+            setValidationError("Error al actualizar el perfil. Por favor intenta de nuevo.")
+          }
+        } else {
+          // Normal registration flow: Proceed to step 2
+          console.log("Validation successful")
+          setStep(2)
+        }
+      } else {
+        // Generic error for security
+        setValidationError("Invalid")
+      }
+    } catch (error) {
+      console.error("Validation error:", error)
+      setValidationError("Error")
+    } finally {
+      setIsValidating(false)
     }
   }
 
-  return false;
-}
+  const handleEmailRegister = async () => {
+    if (!email || !password || !confirmPassword) {
+      setValidationError("Por favor completa todos los campos")
+      return
+    }
 
+    if (password !== confirmPassword) {
+      setValidationError("Las contraseñas no coinciden")
+      return
+    }
+
+    setRegisterLoading(true)
+    setValidationError(null)
+
+    try {
+      const u = await registerWithEmail(email, password)
+
+      // Update profile with role and center
+      await setDoc(doc(db, "users", u.uid), {
+        role: role,
+        centerId: selectedCenterId,
+        centerName: selectedCenterName,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true })
+
+      router.push('/welcome')
+    } catch (error) {
+      console.error("Registration error:", error)
+      const message = error instanceof Error ? error.message : "Error al registrarse"
+      setValidationError(message)
+    } finally {
+      setRegisterLoading(false)
+    }
+  }
+
+  const handleSocialRegister = async (provider: 'google' | 'microsoft') => {
+    setRegisterLoading(true)
+    setValidationError(null)
+    try {
+      const u = provider === 'google'
+        ? await signInWithGoogle()
+        : await signInWithMicrosoft()
+
+      if (u) {
+        // Update profile with role and center
+        await setDoc(doc(db, "users", u.uid), {
+          role: role,
+          centerId: selectedCenterId,
+          centerName: selectedCenterName,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true })
+
+        router.push('/welcome')
+      }
+    } catch (error) {
+      console.error("Social registration error:", error)
+      setValidationError("Error al registrarse con red social")
+    } finally {
+      setRegisterLoading(false)
+    }
+  }
+
+  const handleBackToLogin = async () => {
+    try {
+      if (user) {
+        // Try to delete the user since they are cancelling the registration process
+        // This cleans up the "half-created" user in Firebase Auth
+        await user.delete()
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error)
+      // If delete fails (e.g. requires re-auth), ensure we at least sign out
+      await signOut(auth)
+    }
+    router.push('/auth')
+  }
+
+  if (step === 2) {
+    return (
+      <div className="relative flex h-auto min-h-screen w-full flex-col bg-[#f6f6f8] dark:bg-[#101622] group/design-root overflow-x-hidden">
+        <div className="layout-container flex h-full grow flex-col">
+          <div className="px-4 flex flex-1 justify-center items-center py-5">
+            <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
+              <div className="flex flex-col items-center justify-center p-6 sm:p-8 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <div className="flex flex-col items-center text-center w-full">
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-[#135bec] mb-4">
+                    <span className="material-symbols-outlined text-white" style={{ fontSize: '28px' }}>school</span>
+                  </div>
+                  <h1 className="text-3xl font-bold text-[var(--text-color)] pb-2 pt-2">¡Código validado!</h1>
+                  <p className="text-[var(--text-color)] opacity-70 text-base font-normal pb-6">Listo para crear tu cuenta. Elige tu método de registro preferido.</p>
+                </div>
+                <div className="w-full flex flex-col gap-4">
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <label className="sr-only" htmlFor="email">Correo Electrónico</label>
+                      <Input
+                        id="email"
+                        placeholder="Correo Electrónico"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="sr-only" htmlFor="password">Contraseña</label>
+                      <Input
+                        id="password"
+                        placeholder="Contraseña"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="sr-only" htmlFor="confirm-password">Confirmar Contraseña</label>
+                      <Input
+                        id="confirm-password"
+                        placeholder="Confirmar Contraseña"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      className="mt-2"
+                      onClick={handleEmailRegister}
+                      loading={registerLoading}
+                      loadingText="Registrando..."
+                    >
+                      Registrarse con Correo
+                    </Button>
+                  </div>
+                  <div className="relative flex items-center py-4">
+                    <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700"></div>
+                    <span className="flex-shrink mx-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">O CONTINUAR CON</span>
+                    <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700"></div>
+                  </div>
+                  <div className="flex flex-col gap-4">
+                    <GoogleButton
+                      text="Continuar con Google"
+                      onClick={() => handleSocialRegister('google')}
+                      loading={registerLoading}
+                    />
+                    <MicrosoftButton
+                      text="Continuar con Microsoft"
+                      onClick={() => handleSocialRegister('microsoft')}
+                      loading={registerLoading}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-[var(--bg-color)] flex items-center justify-center min-h-screen p-4">
+      <div className="bg-[var(--container-bg)] rounded-2xl shadow-2xl p-8 w-full max-w-md border border-[var(--border-light)] dark:border-[var(--border-dark)]">
+
+        {/* Header */}
+        <div className="flex flex-col items-center text-center w-full mb-8">
+          <div className="flex items-center justify-center h-12 w-12 rounded-full bg-[var(--button-bg)] mb-4">
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '28px' }}>school</span>
+          </div>
+          <h1 className="text-3xl font-bold text-[var(--text-color)] pb-2">¡Bienvenido a EDU360!</h1>
+          <p className="text-[var(--text-color)] opacity-70 text-base font-normal">Para comenzar, por favor configura tu perfil.</p>
+        </div>
+
+        {/* Validation Error Banner */}
+        {validationError && (
+          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 flex gap-3 items-start">
+            <span className="material-symbols-outlined text-red-500 mt-0.5">error</span>
+            <div>
+              <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">Error de validación</h3>
+              <p className="text-sm text-red-700 dark:text-red-300">La información proporcionada no es válida. Por favor, revisa tus datos.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="w-full flex flex-col gap-6">
+
+          {/* Role Selection */}
+          <div>
+            <h2 className="text-[var(--text-color)] text-lg font-bold mb-3">Selecciona tu rol</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => {
+                  setRole('admin')
+                  setFieldErrors(prev => ({ ...prev, role: false }))
+                }}
+                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 group ${role === 'admin'
+                  ? 'border-[var(--button-bg)] bg-[var(--button-bg)]/10 ring-2 ring-[var(--button-bg)]/20'
+                  : fieldErrors.role
+                    ? 'border-red-500 bg-red-50/10'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
+                  }`}
+              >
+                <span
+                  className={`material-symbols-outlined ${role === 'admin' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
+                  style={{ fontSize: '32px' }}
+                >
+                  corporate_fare
+                </span>
+                <p className={`text-sm font-bold ${role === 'admin' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
+                  Administrativo
+                </p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setRole('professor')
+                  setFieldErrors(prev => ({ ...prev, role: false }))
+                }}
+                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 group ${role === 'professor'
+                  ? 'border-[var(--button-bg)] bg-[var(--button-bg)]/10 ring-2 ring-[var(--button-bg)]/20'
+                  : fieldErrors.role
+                    ? 'border-red-500 bg-red-50/10'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
+                  }`}
+              >
+                <span
+                  className={`material-symbols-outlined ${role === 'professor' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
+                  style={{ fontSize: '32px' }}
+                >
+                  person
+                </span>
+                <p className={`text-sm font-bold ${role === 'professor' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
+                  Profesor
+                </p>
+              </button>
+            </div>
+            {fieldErrors.role && (
+              <p className="text-red-500 text-xs mt-2 font-medium">Por favor selecciona un rol</p>
+            )}
+          </div>
+
+          {/* Activation Code */}
+          <div>
+            <label className="text-[var(--text-color)] text-lg font-bold mb-3 block" htmlFor="activation-code">
+              Código de Activación
+            </label>
+            <Input
+              id="activation-code"
+              placeholder="Ingresa el código proporcionado"
+              type="text"
+              value={activationCode}
+              onChange={(e) => {
+                setActivationCode(e.target.value)
+                setFieldErrors(prev => ({ ...prev, activationCode: false }))
+              }}
+              error={fieldErrors.activationCode}
+            />
+            {fieldErrors.activationCode && (
+              <p className="text-red-500 text-xs mt-1 font-medium">Campo requerido</p>
+            )}
+          </div>
+
+          {/* Education Center (Searchable Select) */}
+          <SearchableSelect
+            label="Centro Educativo"
+            placeholder="Buscar centro educativo..."
+            items={centers.map(c => c.name)}
+            value={selectedCenterName}
+            onChange={(value) => {
+              const center = centers.find(c => c.name === value)
+              if (center) {
+                setSelectedCenterId(center.id)
+                setSelectedCenterName(center.name)
+                setFieldErrors(prev => ({ ...prev, selectedCenter: false }))
+              } else {
+                setSelectedCenterId('')
+                setSelectedCenterName('')
+              }
+            }}
+            error={fieldErrors.selectedCenter}
+            errorMessage="Campo requerido"
+          />
+
+        </div>
+
+        <div className="w-full pt-8">
+          <Button
+            onClick={handleContinue}
+            disabled={isValidating || authLoading}
+            loading={isValidating || authLoading}
+            loadingText={authLoading ? "Cargando..." : "Verificando..."}
+          >
+            Verificar y continuar
+          </Button>
+        </div>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={handleBackToLogin}
+            className="text-sm text-[var(--link-color)] hover:text-[var(--text-color)] bg-transparent border-none cursor-pointer underline"
+          >
+            Volver al inicio de sesión
+          </button>
+        </div>
+
+      </div>
+    </div>
+  )
+}

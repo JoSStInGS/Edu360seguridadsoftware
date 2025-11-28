@@ -9,7 +9,14 @@ import {
   signInWithMicrosoft,
   signInWithGoogle,
   signInWithEmail,
+  logout,
 } from '@/app/auth/services/auth'
+import { auth } from '@/app/lib/firebase'
+import { signOut, getRedirectResult } from 'firebase/auth'
+
+import { GoogleButton, MicrosoftButton } from '@/app/auth/components/SocialButtons'
+import { Input } from '@/app/components/Input'
+import { Button } from '@/app/components/Button'
 
 export default function LoginPage() {
   const { user } = useAuth()
@@ -23,19 +30,47 @@ export default function LoginPage() {
   useEffect(() => {
     let active = true
     const check = async () => {
+      // 1. Check if we are returning from a Redirect Login (e.g. Google/Microsoft fallback)
+      try {
+        const redirectResult = await getRedirectResult(auth)
+        if (redirectResult?.user) {
+          // If this is a redirect login, we proceed normally
+          const role = await getUserRole(redirectResult.user.uid)
+          if (!active) return
+          router.replace(role ? '/welcome' : '/auth/complete-profile')
+          return
+        }
+      } catch (e) {
+        console.error("Redirect result error:", e)
+      }
+
+      // 2. Standard check
       if (user) {
+        // If we are currently processing a login (Popup or Email), do NOT interfere.
+        if (loadingEmail || loadingGoogle || loadingMicrosoft) return
+
         const role = await getUserRole(user.uid)
         if (!active) return
-        if (!role) {
-          router.replace('/register')
-        } else {
+
+        if (role) {
           router.replace('/welcome')
+        } else {
+          // User is logged in but has no role, and we are NOT in the middle of a login action.
+          // This means they navigated here manually (e.g. via browser bar or back button).
+          // We treat this as an "abandoned" registration and clean up.
+          console.log("Incomplete user detected on login page. Cleaning up...")
+          try {
+            await user.delete()
+          } catch (error) {
+            console.error("Error deleting incomplete user:", error)
+            await signOut(auth)
+          }
         }
       }
     }
     void check()
     return () => { active = false }
-  }, [user, router])
+  }, [user, router, loadingEmail, loadingGoogle, loadingMicrosoft])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,67 +129,46 @@ export default function LoginPage() {
         <form onSubmit={handleEmailLogin} className="space-y-6">
           <div>
             <label className="sr-only" htmlFor="email">Correo electrónico</label>
-            <input
+            <Input
               id="email"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Correo electrónico"
-              className="w-full px-4 py-3 bg-transparent border-b-2 border-[var(--text-color)] text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none focus:border-[var(--button-bg)] transition-colors"
             />
           </div>
           <div>
             <label className="sr-only" htmlFor="password">Contraseña</label>
-            <input
+            <Input
               id="password"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Contraseña"
-              className="w-full px-4 py-3 bg-transparent border-b-2 border-[var(--text-color)] text-[var(--text-color)] placeholder:text-[var(--placeholder-color)] focus:outline-none focus:border-[var(--button-bg)] transition-colors"
             />
           </div>
-          <button
+          <Button
             type="submit"
-            disabled={loadingEmail}
-            className="w-full bg-[var(--button-bg)] text-[var(--button-text)] font-bold py-3 px-4 rounded-lg hover:bg-blue-500 transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-60"
+            loading={loadingEmail}
+            loadingText="Ingresando..."
           >
-            {loadingEmail ? 'Ingresando...' : 'Iniciar sesión'}
-          </button>
+            Iniciar sesión
+          </Button>
         </form>
         <div className="mt-6 flex flex-col gap-4">
-          <button
+          <GoogleButton
             onClick={handleGoogleLogin}
-            disabled={loadingGoogle}
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-60"
-          >
-            {loadingGoogle ? 'Cargando...' : (
-              <span className="flex items-center gap-2 text-sm font-medium">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-5 w-5" />
-                Iniciar con Google
-              </span>
-            )}
-          </button>
-          <button
+            loading={loadingGoogle}
+          />
+          <MicrosoftButton
             onClick={handleMicrosoftLogin}
-            disabled={loadingMicrosoft}
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-60"
-          >
-            {loadingMicrosoft ? 'Cargando...' : (
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M11.5 22.5H2.5V13.5H11.5V22.5ZM21.5 11.5H12.5V2.5H21.5V11.5ZM11.5 11.5H2.5V2.5H11.5V11.5ZM21.5 22.5H12.5V13.5H21.5V22.5Z" />
-                </svg>
-                Iniciar con Microsoft
-              </span>
-            )}
-          </button>
+            loading={loadingMicrosoft}
+          />
         </div>
         <div className="mt-6 text-center">
-          <Link href="/register" className="text-sm text-[var(--link-color)] hover:text-[var(--text-color)]">
+          <Link href="/auth/complete-profile" className="text-sm text-[var(--link-color)] hover:text-[var(--text-color)]">
             ¿No tienes una cuenta? Crear una
           </Link>
         </div>
