@@ -7,6 +7,8 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { logout } from "@/app/auth/services/auth";
 import CustomSelect from "@/app/components/CustomSelect";
+import { useFetchPeriods } from "@/app/hooks/useFetchPeriods";
+import { usePeriodStore } from "@/app/stores/usePeriodStore";
 
 const NAV_ITEMS = [
   { label: "Inicio", icon: "home", href: "/dashboard" },
@@ -24,6 +26,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDesktopSidebarVisible, setIsDesktopSidebarVisible] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Fetch periods globally
+  useFetchPeriods();
+  const { periods, selectedPeriod, setSelectedPeriod, isLoading } = usePeriodStore();
 
   const navItems = useMemo(() => NAV_ITEMS, []);
 
@@ -191,7 +197,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               </button>
 
               <CustomSelect
-                availableKeys={["Año Lectivo 2024", "Año Lectivo 2023"]}
+                availableKeys={periods.length > 0 ? periods : (isLoading ? ["Cargando..."] : ["Sin periodos"])}
+                value={selectedPeriod || (isLoading ? "Cargando..." : "Sin periodos")}
+                onChange={(key) => setSelectedPeriod(key)}
                 selectedValueClassName="text-center"
                 optionClassName="text-center"
               />

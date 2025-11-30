@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/auth/hooks/useAuth";
+import CustomSelect from "@/app/components/CustomSelect";
+import { usePeriodStore } from "@/app/stores/usePeriodStore";
 
 type Student = {
   id: string;
@@ -47,16 +49,60 @@ function calculateAge(birthdate?: string) {
 
 export default function StudentsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { selectedPeriod } = usePeriodStore();
   const [students, setStudents] = useState<Student[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [cursors, setCursors] = useState<Record<number, string | null>>({ 1: null });
+  const [hasMore, setHasMore] = useState(true);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setPage(1);
+    setCursors({ 1: null });
+    setHasMore(true);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     const fetchStudents = async () => {
       if (!user) return;
 
+      setLoadingData(true);
       try {
         const token = await user.getIdToken();
-        const response = await fetch("/api/students", {
+
+        // Construct URL with pagination and search params
+        const url = new URL("/api/students", window.location.origin);
+        url.searchParams.set("limit", "10");
+        if (selectedPeriod) {
+          url.searchParams.set("period", selectedPeriod);
+        }
+
+        if (debouncedSearch) {
+          url.searchParams.set("search", debouncedSearch);
+        }
+
+        const currentCursor = cursors[page];
+        if (currentCursor) {
+          url.searchParams.set("lastVisibleId", currentCursor);
+        }
+
+        const response = await fetch(url.toString(), {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -68,6 +114,20 @@ export default function StudentsPage() {
 
         const data = await response.json();
         setStudents(data.students || []);
+
+        // Update cursor for the next page
+        if (data.lastVisibleId) {
+          setCursors(prev => ({ ...prev, [page + 1]: data.lastVisibleId }));
+          setHasMore(true);
+        } else {
+          setHasMore(false);
+        }
+
+        // If we got fewer than 10 items, there are no more pages
+        if (data.students.length < 10) {
+          setHasMore(false);
+        }
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -82,9 +142,9 @@ export default function StudentsPage() {
         setLoadingData(false);
       }
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, page, debouncedSearch, selectedPeriod]); // Re-fetch when page or search changes
 
-  if (authLoading || loadingData) {
+  if (authLoading || loadingData && students.length === 0) { // Show loading only on initial load or if no data
     return (
       <div className="flex h-64 w-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary)] border-t-transparent"></div>
@@ -93,9 +153,16 @@ export default function StudentsPage() {
   }
 
   const hasStudents = students.length > 0;
-  const activeCount = students.filter(
-    (student) => (student.status ?? "Activo") === "Activo",
-  ).length;
+
+  const handlePrevPage = () => {
+    setPage(p => Math.max(1, p - 1));
+  };
+
+  const handleNextPage = () => {
+    if (hasMore) {
+      setPage(p => p + 1);
+    }
+  };
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -103,7 +170,7 @@ export default function StudentsPage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-3xl font-bold">Estudiantes</h2>
           <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-            Periodo lectivo: <span className="font-semibold">2025</span> · Total estudiantes: <span className="font-semibold">{students.length}</span> (Activos: <span className="font-semibold">{activeCount}</span>)
+            Periodo lectivo: <span className="font-semibold">{selectedPeriod || "Cargando..."}</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
@@ -123,31 +190,49 @@ export default function StudentsPage() {
 
       <div className="mb-6 xl:mb-8 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {["Año lectivo", "Nivel", "Grupo", "Especialidad", "Estado"].map((label) => (
+          {["Nivel", "Grupo", "Especialidad"].map((label) => (
             <div key={label}>
               <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                 {label}
               </label>
-              <select className="mt-1 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-                <option>Todos</option>
-              </select>
+              <CustomSelect
+                availableKeys={["Todos"]}
+                value="Todos"
+                onChange={() => { }}
+                className="mt-1"
+                triggerClassName="w-full h-10 rounded-lg !border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 !text-sm text-[var(--foreground-light)] focus:!border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:!border-[var(--border-dark)] dark:bg-[var(--card-dark)] dark:text-[var(--foreground-dark)]"
+                dropdownClassName="bg-[var(--card-light)] dark:bg-[var(--card-dark)] border-[var(--border-light)] dark:border-[var(--border-dark)]"
+                optionClassName="text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] hover:bg-[rgba(15,23,42,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]"
+              />
             </div>
           ))}
-        </div>
 
-        <div className="relative mt-6">
-          <input
-            type="search"
-            placeholder="Buscar por nombre o ID"
-            className="h-10 w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-          />
-          <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-            search
-          </span>
+          <div className="xl:col-span-2">
+            <label className="text-sm font-medium text-transparent select-none">
+              Búsqueda
+            </label>
+            <div className="relative mt-1">
+              <input
+                type="search"
+                placeholder="Buscar por nombre o ID"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full h-10 rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+              />
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                search
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+        {loadingData && students.length > 0 && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 dark:bg-black/50">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary)] border-t-transparent"></div>
+          </div>
+        )}
         {hasStudents ? (
           <>
             <table className="w-full text-left text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
@@ -183,36 +268,31 @@ export default function StudentsPage() {
             </table>
             <div className="flex items-center justify-between px-6 py-4 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
               <span>
-                Mostrando
-                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> 1 </span>
-                a
-                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> {Math.min(students.length, 10)}</span>
-                de
-                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]"> {students.length}</span>
+                Página <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">{page}</span>
               </span>
-              <div className="flex items-center gap-1">
-                {[
-                  { icon: "chevron_left", label: "Anterior" },
-                  { label: "1", isActive: true },
-                  { label: "2" },
-                  { label: "3" },
-                  { label: "...", disabled: true },
-                  { label: "10" },
-                  { icon: "chevron_right", label: "Siguiente" },
-                ].map((item) => (
-                  <button
-                    key={item.label ?? item.icon}
-                    className={`rounded-lg px-3 py-1 text-sm font-medium transition ${item.isActive
-                      ? "bg-[var(--primary)] text-white"
-                      : item.disabled
-                        ? "cursor-default text-[var(--muted-light)] dark:text-[var(--muted-dark)]"
-                        : "text-[var(--muted-light)] hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
-                      }`}
-                    disabled={item.disabled}
-                  >
-                    {item.icon ? <span className="material-symbols-outlined text-lg">{item.icon}</span> : item.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={page === 1}
+                  className={`flex items-center gap-1 rounded-lg px-3 py-1 text-sm font-medium transition ${page === 1
+                    ? "cursor-default opacity-50"
+                    : "hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                    }`}
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                  Anterior
+                </button>
+                <button
+                  onClick={handleNextPage}
+                  disabled={!hasMore}
+                  className={`flex items-center gap-1 rounded-lg px-3 py-1 text-sm font-medium transition ${!hasMore
+                    ? "cursor-default opacity-50"
+                    : "hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                    }`}
+                >
+                  Siguiente
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
               </div>
             </div>
           </>
@@ -220,15 +300,19 @@ export default function StudentsPage() {
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
             <span className="material-symbols-outlined text-4xl text-[var(--primary)]">groups</span>
             <p className="text-lg font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-              No hay estudiantes cargados en el sistema.
+              {debouncedSearch ? "No se encontraron estudiantes con ese criterio." : "No hay estudiantes cargados en el sistema."}
             </p>
-            <p>Por favor, contacte al administrador o importe una lista de estudiantes.</p>
-            <Link
-              href="/dashboard/students/import"
-              className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105"
-            >
-              Importar estudiantes
-            </Link>
+            {!debouncedSearch && (
+              <>
+                <p>Por favor, contacte al administrador o importe una lista de estudiantes.</p>
+                <Link
+                  href="/dashboard/students/import"
+                  className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105"
+                >
+                  Importar estudiantes
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

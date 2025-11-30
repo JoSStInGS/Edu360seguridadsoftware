@@ -111,21 +111,18 @@ export default function CustomSelect(props: Props) {
 
           setIsOpen(!isOpen);
         }}
-        className={`flex w-full items-center justify-between rounded-lg border border-[var(--secondary)] bg-white px-3 py-1 text-xs text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] ${
-          props.triggerClassName ? props.triggerClassName : ""
-        }`}
+        className={`flex w-full items-center justify-between rounded-lg border border-[var(--secondary)] bg-white px-3 py-1 text-xs text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] ${props.triggerClassName ? props.triggerClassName : ""
+          }`}
       >
         <span
-          className={`flex-1 text-left ${
-            props.selectedValueClassName ? props.selectedValueClassName : ""
-          }`}
+          className={`flex-1 text-left ${props.selectedValueClassName ? props.selectedValueClassName : ""
+            }`}
         >
           {selectedKey}
         </span>
         <span
-          className={`material-symbols-outlined text-[var(--accent)] transition-transform duration-200 ${
-            isOpen ? "rotate-180" : "rotate-0"
-          }`}
+          className={`material-symbols-outlined text-[var(--accent)] transition-transform duration-200 ${isOpen ? "rotate-180" : "rotate-0"
+            }`}
         >
           expand_more
         </span>
@@ -133,18 +130,16 @@ export default function CustomSelect(props: Props) {
 
       {isOpen && (
         <ul
-          className={`absolute left-0 z-20 w-full max-h-48 overflow-y-auto rounded-lg border border-[var(--primary)] bg-white shadow-lg ${
-            dropdownDirection === "down"
+          className={`absolute left-0 z-20 w-full max-h-48 overflow-y-auto rounded-lg border border-[var(--primary)] bg-white shadow-lg ${dropdownDirection === "down"
               ? "top-full mt-1 origin-top"
               : "bottom-full mb-1 origin-bottom"
-          } ${props.dropdownClassName ? props.dropdownClassName : ""}`}
+            } ${props.dropdownClassName ? props.dropdownClassName : ""}`}
         >
           {props.availableKeys.map((key, index) => (
             <li
               key={`${key}-${index}`}
-              className={`m-0.5 rounded-lg px-3 py-2 text-xs text-[var(--text)] text-left transition hover:bg-[rgba(21,53,147,0.1)] ${
-                props.optionClassName ? props.optionClassName : ""
-              }`}
+              className={`m-0.5 rounded-lg px-3 py-2 text-xs text-[var(--text)] text-left transition hover:bg-[rgba(21,53,147,0.1)] ${props.optionClassName ? props.optionClassName : ""
+                }`}
               onClick={() => handleSelection(key)}
             >
               {key}
