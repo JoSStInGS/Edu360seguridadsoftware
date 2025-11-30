@@ -4,6 +4,7 @@ import type { ServiceAccount } from "firebase-admin";
 function getServiceAccount(): ServiceAccount | undefined {
   const inline =
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
   if (inline) {

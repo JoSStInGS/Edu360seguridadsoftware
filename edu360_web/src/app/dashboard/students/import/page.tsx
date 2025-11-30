@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import CustomSelect from "@/app/components/CustomSelect";
+import { useAuth } from "@/app/auth/hooks/useAuth";
+import { usePeriodStore } from "@/app/stores/usePeriodStore";
+import { db } from "@/app/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 type ParsedTable = {
   headerRow: string[];
@@ -140,9 +144,65 @@ export default function ImportStudentsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [periodoLectivo, setPeriodoLectivo] = useState<string>("2025");
-  const [centerName, setCenterName] = useState<string>("Centro Educativo Principal");
+  const { user } = useAuth();
+  const { periods, isLoading: periodsLoading } = usePeriodStore();
+  const [periodoLectivo, setPeriodoLectivo] = useState<string>("");
+  const [centerName, setCenterName] = useState<string>("Cargando...");
   const [phase, setPhase] = useState<"mapping" | "processing" | "success">("mapping");
+
+  // Calculate available options
+  const currentYear = new Date().getFullYear().toString();
+  const createOption = `Crear nuevo año lectivo ${currentYear}`;
+
+  const periodOptions = periodsLoading
+    ? ["Cargando..."]
+    : periods.includes(currentYear)
+      ? periods
+      : [createOption, ...periods];
+
+  if (!periodsLoading && periodOptions.length === 0) {
+    periodOptions.push("Sin periodos");
+  }
+
+  useEffect(() => {
+    if (!periodsLoading && !periodoLectivo) {
+      if (periods.includes(currentYear)) {
+        setPeriodoLectivo(currentYear);
+      } else if (periodOptions.includes(createOption)) {
+        // Default to creating new year if current doesn't exist
+        setPeriodoLectivo(currentYear);
+      } else if (periods.length > 0) {
+        setPeriodoLectivo(periods[0]);
+      }
+    }
+  }, [periods, periodsLoading, periodoLectivo, currentYear, createOption, periodOptions]);
+
+  useEffect(() => {
+    const fetchCenterName = async () => {
+      if (!user) return;
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Assuming the center name is stored in the user profile or we need to fetch it from the center doc
+          // The user mentioned "centerName" in the profile in the prompt description (image)
+          // Let's check if it's there, otherwise fetch from centers collection
+          if (userData.centerName) {
+            setCenterName(userData.centerName);
+          } else if (userData.centerId) {
+            const centerDoc = await getDoc(doc(db, "centers", userData.centerId));
+            if (centerDoc.exists()) {
+              setCenterName(centerDoc.data().name || "Centro Desconocido");
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching center name:", error);
+        setCenterName("Error al cargar centro");
+      }
+    };
+    fetchCenterName();
+  }, [user]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -383,19 +443,28 @@ export default function ImportStudentsPage() {
                 <label className="block text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                   Año lectivo
                 </label>
-                <select value={periodoLectivo} onChange={(e) => setPeriodoLectivo(e.target.value)} className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-                  <option>2025</option>
-                  <option>2024</option>
-                </select>
+                <CustomSelect
+                  availableKeys={periodOptions}
+                  value={periodoLectivo || "Seleccione un periodo"}
+                  onChange={(value) => {
+                    if (value === createOption) {
+                      setPeriodoLectivo(currentYear);
+                    } else {
+                      setPeriodoLectivo(value);
+                    }
+                  }}
+                  triggerClassName="mt-2 w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+                  dropdownClassName="bg-[var(--card-light)] dark:bg-[var(--card-dark)] border-[var(--border-light)] dark:border-[var(--border-dark)]"
+                  optionClassName="text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] hover:bg-[rgba(15,23,42,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                   Institución
                 </label>
-                <select value={centerName} onChange={(e) => setCenterName(e.target.value)} className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-                  <option>Centro Educativo Principal</option>
-                  <option>Centro Educativo Secundario</option>
-                </select>
+                <div className="mt-2 block w-full rounded-lg border border-[var(--border-light)] bg-[var(--background-light)] px-3 py-2 text-sm text-[var(--muted-light)] dark:border-[var(--border-dark)] dark:bg-[var(--background-dark)] dark:text-[var(--muted-dark)]">
+                  {centerName}
+                </div>
               </div>
             </div>
 
@@ -511,11 +580,10 @@ export default function ImportStudentsPage() {
           <div className="flex flex-col gap-3 border-t border-[var(--border-light)] bg-[var(--background-light)] px-6 py-4 text-sm dark:border-[var(--border-dark)] dark:bg-[rgba(17,21,33,0.7)] md:flex-row md:items-center md:justify-between">
             {(importError || importFeedback) && (
               <p
-                className={`font-medium ${
-                  importError
-                    ? "text-[var(--destructive-light)]"
-                    : "text-[var(--primary)]"
-                }`}
+                className={`font-medium ${importError
+                  ? "text-[var(--destructive-light)]"
+                  : "text-[var(--primary)]"
+                  }`}
               >
                 {importError ?? importFeedback}
               </p>

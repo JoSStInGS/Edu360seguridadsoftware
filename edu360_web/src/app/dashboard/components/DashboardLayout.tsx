@@ -72,7 +72,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {navItems.map((item) => {
             const isActive =
               item.href !== "#" &&
-              (pathname === item.href || pathname.startsWith(`${item.href}/`));
+              (item.href === "/dashboard"
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(`${item.href}/`));
 
             const baseClasses =
               "flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs";

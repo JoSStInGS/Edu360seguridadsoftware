@@ -62,6 +62,7 @@ export async function GET(request: Request) {
 
         const limit = limitParam ? parseInt(limitParam, 10) : 10;
 
+
         // 5. Fetch students
         const studentsRef = db
             .collection("centers")
@@ -95,11 +96,17 @@ export async function GET(request: Request) {
                 // Note: This is case-sensitive.
                 const term = search;
                 const endTerm = term + "\uf8ff";
+                const termLower = term.toLowerCase();
+                const endTermLower = termLower + "\uf8ff";
 
-                const [nameSnap, lastName1Snap, lastName2Snap] = await Promise.all([
+                const [nameSnap, lastName1Snap, lastName2Snap, nameLowerSnap, lastName1LowerSnap, lastName2LowerSnap] = await Promise.all([
                     studentsRef.where("name", ">=", term).where("name", "<=", endTerm).get(),
                     studentsRef.where("lastName1", ">=", term).where("lastName1", "<=", endTerm).get(),
-                    studentsRef.where("lastName2", ">=", term).where("lastName2", "<=", endTerm).get()
+                    studentsRef.where("lastName2", ">=", term).where("lastName2", "<=", endTerm).get(),
+                    // Case-insensitive queries (requires data to have _lower fields)
+                    studentsRef.where("name_lower", ">=", termLower).where("name_lower", "<=", endTermLower).get(),
+                    studentsRef.where("lastName1_lower", ">=", termLower).where("lastName1_lower", "<=", endTermLower).get(),
+                    studentsRef.where("lastName2_lower", ">=", termLower).where("lastName2_lower", "<=", endTermLower).get()
                 ]);
 
                 // Merge results by ID to avoid duplicates
@@ -116,6 +123,9 @@ export async function GET(request: Request) {
                 addToMap(nameSnap);
                 addToMap(lastName1Snap);
                 addToMap(lastName2Snap);
+                addToMap(nameLowerSnap);
+                addToMap(lastName1LowerSnap);
+                addToMap(lastName2LowerSnap);
 
                 students = Array.from(studentsMap.values());
 

@@ -23,6 +23,9 @@ type StudentRecord = {
   centerName: string;
   periodoLectivo: string;
   createdAt: FieldValue;
+  name_lower: string | null;
+  lastName1_lower: string | null;
+  lastName2_lower: string | null;
 };
 
 type AllowedFieldKey =
@@ -250,12 +253,34 @@ export async function POST(request: Request) {
     const centerId = sanitizeSegment(centerName) || "centro";
     const periodoId = sanitizeSegment(periodoLectivo) || "periodo";
 
-    const studentsCollection = db
-      .collection("centers")
-      .doc(centerId)
-      .collection("periods")
-      .doc(periodoId)
-      .collection("students");
+    const centerRef = db.collection("centers").doc(centerId);
+    const centerSnap = await centerRef.get();
+
+    if (!centerSnap.exists) {
+      await centerRef.set(
+        {
+          centerName,
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+
+    const periodRef = centerRef.collection("periods").doc(periodoId);
+    const periodSnap = await periodRef.get();
+
+    if (!periodSnap.exists) {
+      await periodRef.set(
+        {
+          periodoLectivo,
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    const studentsCollection = periodRef.collection("students");
 
     const batchSize = 400;
     let batch = db.batch();
@@ -300,6 +325,9 @@ export async function POST(request: Request) {
         centerName,
         periodoLectivo,
         createdAt: serverTimestamp(),
+        name_lower: null,
+        lastName1_lower: null,
+        lastName2_lower: null,
       };
 
       for (const entry of mappings) {
@@ -317,6 +345,11 @@ export async function POST(request: Request) {
         const normalized = rawValue.trim();
         studentData[key] = normalized.length > 0 ? normalized : null;
       }
+
+      // Populate lowercase fields
+      studentData.name_lower = studentData.name?.toLowerCase() ?? null;
+      studentData.lastName1_lower = studentData.lastName1?.toLowerCase() ?? null;
+      studentData.lastName2_lower = studentData.lastName2?.toLowerCase() ?? null;
 
       batch.set(docRef, studentData);
       batchCount += 1;
