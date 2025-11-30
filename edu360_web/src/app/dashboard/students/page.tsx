@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import CustomSelect from "@/app/components/CustomSelect";
@@ -55,7 +55,7 @@ export default function StudentsPage() {
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const [cursors, setCursors] = useState<Record<number, string | null>>({ 1: null });
+  const cursors = useRef<Record<number, string | null>>({ 1: null });
   const [hasMore, setHasMore] = useState(true);
 
   // Search state
@@ -74,7 +74,7 @@ export default function StudentsPage() {
   // Reset pagination when search changes
   useEffect(() => {
     setPage(1);
-    setCursors({ 1: null });
+    cursors.current = { 1: null };
     setHasMore(true);
   }, [debouncedSearch]);
 
@@ -97,7 +97,7 @@ export default function StudentsPage() {
           url.searchParams.set("search", debouncedSearch);
         }
 
-        const currentCursor = cursors[page];
+        const currentCursor = cursors.current[page];
         if (currentCursor) {
           url.searchParams.set("lastVisibleId", currentCursor);
         }
@@ -116,8 +116,9 @@ export default function StudentsPage() {
         setStudents(data.students || []);
 
         // Update cursor for the next page
+        // Update cursor for the next page
         if (data.lastVisibleId) {
-          setCursors(prev => ({ ...prev, [page + 1]: data.lastVisibleId }));
+          cursors.current = { ...cursors.current, [page + 1]: data.lastVisibleId };
           setHasMore(true);
         } else {
           setHasMore(false);

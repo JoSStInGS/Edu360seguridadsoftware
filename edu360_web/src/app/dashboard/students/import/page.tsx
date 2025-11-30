@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "@/app/components/CustomSelect";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
@@ -154,15 +154,18 @@ export default function ImportStudentsPage() {
   const currentYear = new Date().getFullYear().toString();
   const createOption = `Crear nuevo año lectivo ${currentYear}`;
 
-  const periodOptions = periodsLoading
-    ? ["Cargando..."]
-    : periods.includes(currentYear)
-      ? periods
-      : [createOption, ...periods];
+  const periodOptions = useMemo(() => {
+    const options = periodsLoading
+      ? ["Cargando..."]
+      : periods.includes(currentYear)
+        ? periods
+        : [createOption, ...periods];
 
-  if (!periodsLoading && periodOptions.length === 0) {
-    periodOptions.push("Sin periodos");
-  }
+    if (!periodsLoading && options.length === 0) {
+      options.push("Sin periodos");
+    }
+    return options;
+  }, [periods, periodsLoading, currentYear, createOption]);
 
   useEffect(() => {
     if (!periodsLoading && !periodoLectivo) {

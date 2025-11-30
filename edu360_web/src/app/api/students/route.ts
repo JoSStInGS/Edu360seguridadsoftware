@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/app/lib/firebaseAdmin";
+import type { QuerySnapshot } from "firebase-admin/firestore";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,30 @@ function formatCedula(value: string) {
     }
     return formatted;
 }
+
+export interface Student {
+    id: string;
+    ced: string;
+    centerId: string;
+    centerName: string;
+
+    createdAt: FirebaseFirestore.Timestamp | null;
+
+    name: string;
+    name_lower: string;
+
+    lastName1: string;
+    lastName1_lower: string;
+
+    lastName2: string;
+    lastName2_lower: string;
+
+    periodoLectivo: string;
+    seccion: string;
+
+    specialty?: string;
+}
+
 
 export async function GET(request: Request) {
     try {
@@ -71,7 +96,7 @@ export async function GET(request: Request) {
             .doc(period)
             .collection("students");
 
-        let students = [];
+        let students: Student[] = [];
         let newLastVisibleId = null;
 
         if (search) {
@@ -89,7 +114,7 @@ export async function GET(request: Request) {
                     .where("ced", "<=", endCedula)
                     .limit(limit)
                     .get();
-                students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
             } else {
                 // Search by Name/LastNames (Prefix match)
                 // Firestore doesn't support OR across different fields natively, so we run parallel queries.
@@ -110,12 +135,12 @@ export async function GET(request: Request) {
                 ]);
 
                 // Merge results by ID to avoid duplicates
-                const studentsMap = new Map();
+                const studentsMap = new Map<string, Student>();
 
-                const addToMap = (snap: any) => {
-                    snap.docs.forEach((doc: any) => {
+                const addToMap = (snap: QuerySnapshot) => {
+                    snap.docs.forEach((doc) => {
                         if (!studentsMap.has(doc.id)) {
-                            studentsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                            studentsMap.set(doc.id, { id: doc.id, ...doc.data() } as Student);
                         }
                     });
                 };
@@ -130,9 +155,9 @@ export async function GET(request: Request) {
                 students = Array.from(studentsMap.values());
 
                 // Sort by name in memory
-                students.sort((a: any, b: any) => {
-                    const nameA = `${a.name} ${a.lastName1} ${a.lastName2}`.toLowerCase();
-                    const nameB = `${b.name} ${b.lastName1} ${b.lastName2}`.toLowerCase();
+                students.sort((a: Student, b: Student) => {
+                    const nameA = `${a.name || ''} ${a.lastName1 || ''} ${a.lastName2 || ''}`.toLowerCase();
+                    const nameB = `${b.name || ''} ${b.lastName1 || ''} ${b.lastName2 || ''}`.toLowerCase();
                     return nameA.localeCompare(nameB);
                 });
 
@@ -140,7 +165,7 @@ export async function GET(request: Request) {
                 // If we wanted to support pagination with search, we'd need to filter after the lastVisibleId in memory
                 // which is inefficient for large result sets but okay for search results usually.
                 if (lastVisibleId) {
-                    const startIndex = students.findIndex((s: any) => s.id === lastVisibleId);
+                    const startIndex = students.findIndex((s: Student) => s.id === lastVisibleId);
                     if (startIndex !== -1) {
                         students = students.slice(startIndex + 1);
                     }
@@ -163,7 +188,7 @@ export async function GET(request: Request) {
             students = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
-            }));
+            } as Student));
         }
 
         // Determine the last visible ID for the next page
