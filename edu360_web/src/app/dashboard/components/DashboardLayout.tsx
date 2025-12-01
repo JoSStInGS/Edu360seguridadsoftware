@@ -13,6 +13,7 @@ import { usePeriodStore } from "@/app/stores/usePeriodStore";
 const NAV_ITEMS = [
   { label: "Inicio", icon: "home", href: "/dashboard" },
   { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
+  { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
   { label: "Grupos/Secciones", icon: "groups", href: "#" },
   { label: "Asistencia", icon: "event_available", href: "#" },
   { label: "Reportes", icon: "monitoring", href: "#" },
