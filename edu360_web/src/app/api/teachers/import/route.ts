@@ -7,21 +7,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
     try {
-        // 1. Get the authorization header (optional but recommended for security)
-        // For now, we'll assume the client sends the token, but we might skip strict validation if not needed for this mock-up phase.
-        // However, to get the user's center, we really should validate the token.
-
+        // 1. Get the authorization header
         const authHeader = request.headers.get("Authorization");
-        // if (!authHeader?.startsWith("Bearer ")) {
-        //     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        // }
-        // const idToken = authHeader.split("Bearer ")[1];
 
         // 2. Parse form data
         const formData = await request.formData();
         const file = formData.get("file") as File;
         const mappingsStr = formData.get("mappings") as string;
-        const centerName = formData.get("centerName") as string;
         const periodoLectivo = formData.get("periodoLectivo") as string;
 
         if (!file || !mappingsStr || !periodoLectivo) {
@@ -45,16 +37,10 @@ export async function POST(request: Request) {
         const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
         const dataRows = lines.slice(1);
 
-        // 4. Process rows
-        const teachersToSave = [];
+        // 4. Get Center ID from Token
         const db = getAdminFirestore();
-
-        // We need to get the centerId. Ideally, this comes from the user's token.
-        // For this implementation, we'll try to get it from the user if token is present,
-        // otherwise we might need to pass it from the client (which is less secure).
-        // Let's assume we can get it from the token.
-
         let centerId = "";
+
         if (authHeader?.startsWith("Bearer ")) {
             const idToken = authHeader.split("Bearer ")[1];
             const app = ensureAdminApp();
@@ -66,26 +52,23 @@ export async function POST(request: Request) {
         }
 
         if (!centerId) {
-            // Fallback or error. For now, let's return error if we can't identify the center.
             return NextResponse.json({ error: "Could not identify education center" }, { status: 400 });
         }
 
+        // 5. Process rows
+        const teachersToSave = [];
+
         for (const rowLine of dataRows) {
-            // Handle quotes in CSV
-            // Simple split for now, but a robust parser is better.
-            // Reusing the simple split logic from the client side for consistency or just split by delimiter if simple.
-            // Let's use a regex to split by delimiter ignoring quotes if possible, or just simple split.
             const row = rowLine.split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
 
             if (row.length !== headers.length) {
-                // Skip malformed rows or handle error
                 continue;
             }
 
-            const teacherData: any = {
+            const teacherData: Record<string, string | number | Date> = {
                 createdAt: new Date(),
                 periodoLectivo: periodoLectivo,
-                status: "Activo", // Default status
+                status: "Activo",
             };
 
             // Map fields
@@ -95,7 +78,6 @@ export async function POST(request: Request) {
                 if (columnIndex !== -1) {
                     const value = row[columnIndex];
 
-                    // Map to specific fields
                     if (mapping.field === "Nombre") teacherData.firstName = value;
                     if (mapping.field === "Apellido1") teacherData.lastName1 = value;
                     if (mapping.field === "Apellido2") teacherData.lastName2 = value;
@@ -105,7 +87,6 @@ export async function POST(request: Request) {
                 }
             }
 
-            // Construct full name for search
             teacherData.fullName = `${teacherData.firstName || ''} ${teacherData.lastName1 || ''} ${teacherData.lastName2 || ''}`.trim();
 
             if (teacherData.firstName && teacherData.lastName1) {
@@ -113,12 +94,12 @@ export async function POST(request: Request) {
             }
         }
 
-        // 5. Save to Firestore
+        // 6. Save to Firestore
         const batch = db.batch();
         const teachersRef = db.collection("centers").doc(centerId).collection("periods").doc(periodoLectivo).collection("teachers");
 
         for (const teacher of teachersToSave) {
-            const newDocRef = teachersRef.doc(); // Auto-ID
+            const newDocRef = teachersRef.doc();
             batch.set(newDocRef, teacher);
         }
 

@@ -8,7 +8,7 @@ import { Teacher } from "@/types/teacher";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 
 export default function TeachersPage() {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
