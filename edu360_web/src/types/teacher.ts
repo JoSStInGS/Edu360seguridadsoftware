@@ -8,6 +8,7 @@ export interface Teacher {
     email?: string; // Made optional as it might not be in the CSV
     type: string; // Changed to string to allow imported values
     area: string;
+    subjects?: string[];
     assignedCourses?: number;
     status: string; // Changed to string to allow imported values
 }

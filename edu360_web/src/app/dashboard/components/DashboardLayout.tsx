@@ -107,6 +107,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+
+          <div className="my-2 border-t border-[rgba(21,53,147,0.1)] dark:border-[rgba(255,255,255,0.1)]" />
+
+          <Link
+            href="/dashboard/schedules/import"
+            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs ${pathname === "/dashboard/schedules/import"
+                ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
+                : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]"
+              }`}
+            onClick={onNavigate}
+          >
+            <span className="material-symbols-outlined">calendar_month</span>
+            <span className="font-semibold">Importar Horarios</span>
+          </Link>
         </nav>
       </div>
       <div className="flex flex-col gap-2">
