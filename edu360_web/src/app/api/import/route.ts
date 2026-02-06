@@ -11,46 +11,44 @@ type MappingEntry = {
 };
 
 type StudentRecord = {
+  cedula: string;
   birthdate: string | null;
-  ced: string | null;
-  id: string;
   lastName1: string | null;
   lastName2: string | null;
   name: string | null;
-  secction: string | null;
+  grupoId: string | null;
+  grupoNombre: string | null;
   specialty: string | null;
   centerId: string;
   centerName: string;
   periodoLectivo: string;
   createdAt: FieldValue;
-  name_lower: string | null;
-  lastName1_lower: string | null;
-  lastName2_lower: string | null;
+  updatedAt: FieldValue;
+  fullName: string | null;
+  fullName_lower: string | null;
 };
 
-type AllowedFieldKey =
-  | "birthdate"
-  | "ced"
-  | "lastName1"
-  | "lastName2"
-  | "name"
-  | "secction"
-  | "specialty";
-
-const FIELD_KEY_MAP: Record<string, AllowedFieldKey> = {
-  "Cédula": "ced",
-  "Nombre": "name",
-  "Primer apellido": "lastName1",
-  "Segundo apellido": "lastName2",
-  "Sección": "secction",
-  "Especialidad": "specialty",
-  "Fecha de nacimiento": "birthdate",
+type InvalidStudent = {
+  cedula: string;
+  nombre: string;
+  seccionOriginal: string;
+  razon: string;
 };
+
 
 function sanitizeSegment(input: string) {
   return input
     .replace(/[\/\\]/g, "-")
     .replace(/[^\p{L}\p{N}_.\-\s]/gu, "")
+    .trim()
+    .slice(0, 100);
+}
+
+function sanitizeCedula(input: string) {
+  // Remove any characters that are not valid for Firestore document IDs
+  return input
+    .replace(/[\/\\]/g, "-")
+    .replace(/[^\p{L}\p{N}_.\-]/gu, "")
     .trim()
     .slice(0, 100);
 }
@@ -186,6 +184,11 @@ function rowHasContent(row: string[]) {
   return row.some((cell) => cell && cell.trim().length > 0);
 }
 
+// Normalize group name for comparison (trim, remove extra spaces, lowercase)
+function normalizeGroupName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
@@ -280,6 +283,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // ============================================
+    // FETCH EXISTING GROUPS FROM DATABASE
+    // ============================================
+    const gruposSnapshot = await periodRef.collection("grupos").get();
+    const existingGroups = new Map<string, { id: string; nombre: string }>();
+
+    for (const doc of gruposSnapshot.docs) {
+      const data = doc.data();
+      const groupName = data.nombre || "";
+      const normalizedName = normalizeGroupName(groupName);
+      existingGroups.set(normalizedName, {
+        id: doc.id,
+        nombre: groupName,
+      });
+    }
+
     const studentsCollection = periodRef.collection("students");
 
     const batchSize = 400;
@@ -287,6 +306,8 @@ export async function POST(request: Request) {
     let batchCount = 0;
     let processed = 0;
     let skipped = 0;
+    let updated = 0;
+    const invalidStudents: InvalidStudent[] = [];
 
     const requiredFields = mappings.filter((entry) => entry.required).map((entry) => entry.field);
 
@@ -295,10 +316,16 @@ export async function POST(request: Request) {
         continue;
       }
 
+      // Extract values from the row
+      const getValue = (fieldName: string): string => {
+        const columnIndex = columnIndexByField.get(fieldName);
+        return columnIndex != null ? (row[columnIndex] ?? "").trim() : "";
+      };
+
+      // Check required fields
       let skipRow = false;
       for (const requiredField of requiredFields) {
-        const columnIndex = columnIndexByField.get(requiredField);
-        const value = columnIndex != null ? (row[columnIndex] ?? "").trim() : "";
+        const value = getValue(requiredField);
         if (!value) {
           skipRow = true;
           break;
@@ -310,50 +337,87 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const docRef = studentsCollection.doc();
+      // Get cedula and use it as document ID
+      const cedula = getValue("Cédula");
+      if (!cedula) {
+        skipped += 1;
+        continue;
+      }
+
+      const sanitizedCedula = sanitizeCedula(cedula);
+      if (!sanitizedCedula) {
+        skipped += 1;
+        continue;
+      }
+
+      // Get student data
+      const name = getValue("Nombre") || null;
+      const lastName1 = getValue("Primer apellido") || null;
+      const lastName2 = getValue("Segundo apellido") || null;
+      const seccionOriginal = getValue("Sección");
+      const specialty = getValue("Especialidad") || null;
+      const birthdate = getValue("Fecha de nacimiento") || null;
+
+      // Build full name
+      const nameParts = [name, lastName1, lastName2].filter(Boolean);
+      const fullName = nameParts.length > 0 ? nameParts.join(" ") : null;
+      const fullName_lower = fullName?.toLowerCase() ?? null;
+
+      // Validate and match section to existing group
+      let grupoId: string | null = null;
+      let grupoNombre: string | null = null;
+
+      if (seccionOriginal) {
+        const normalizedSeccion = normalizeGroupName(seccionOriginal);
+        const matchedGroup = existingGroups.get(normalizedSeccion);
+
+        if (matchedGroup) {
+          grupoId = matchedGroup.id;
+          grupoNombre = matchedGroup.nombre;
+        } else {
+          // Student has a section that doesn't exist in the database
+          invalidStudents.push({
+            cedula,
+            nombre: fullName || "Sin nombre",
+            seccionOriginal,
+            razon: "La sección no existe en el sistema",
+          });
+          // Still import the student but without group assignment
+          grupoId = null;
+          grupoNombre = seccionOriginal; // Keep the original name for reference
+        }
+      }
+
+      // Check if student already exists
+      const docRef = studentsCollection.doc(sanitizedCedula);
+      const existingDoc = await docRef.get();
 
       const studentData: StudentRecord = {
-        birthdate: null,
-        ced: null,
-        id: docRef.id,
-        lastName1: null,
-        lastName2: null,
-        name: null,
-        secction: null,
-        specialty: null,
+        cedula,
+        birthdate,
+        lastName1,
+        lastName2,
+        name,
+        grupoId,
+        grupoNombre,
+        specialty,
         centerId,
         centerName,
         periodoLectivo,
-        createdAt: serverTimestamp(),
-        name_lower: null,
-        lastName1_lower: null,
-        lastName2_lower: null,
+        createdAt: existingDoc.exists ? existingDoc.data()?.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        fullName,
+        fullName_lower,
       };
 
-      for (const entry of mappings) {
-        const key = FIELD_KEY_MAP[entry.field];
-        if (!key) {
-          continue;
-        }
-
-        const columnIndex = columnIndexByField.get(entry.field);
-        if (columnIndex == null) {
-          continue;
-        }
-
-        const rawValue = row[columnIndex] ?? "";
-        const normalized = rawValue.trim();
-        studentData[key] = normalized.length > 0 ? normalized : null;
-      }
-
-      // Populate lowercase fields
-      studentData.name_lower = studentData.name?.toLowerCase() ?? null;
-      studentData.lastName1_lower = studentData.lastName1?.toLowerCase() ?? null;
-      studentData.lastName2_lower = studentData.lastName2?.toLowerCase() ?? null;
-
-      batch.set(docRef, studentData);
+      batch.set(docRef, studentData, { merge: true });
       batchCount += 1;
-      processed += 1;
+
+      if (existingDoc.exists) {
+        updated += 1;
+      } else {
+        processed += 1;
+      }
 
       if (batchCount === batchSize) {
         await batch.commit();
@@ -369,7 +433,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       processed,
+      updated,
       skipped,
+      invalidStudents,
+      hasInvalidStudents: invalidStudents.length > 0,
     });
   } catch (err) {
     console.error("Error al procesar importación:", err);

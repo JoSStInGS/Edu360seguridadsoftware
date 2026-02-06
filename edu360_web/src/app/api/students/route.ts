@@ -4,39 +4,23 @@ import type { QuerySnapshot } from "firebase-admin/firestore";
 
 export const dynamic = "force-dynamic";
 
-function formatCedula(value: string) {
-    const clean = value.replace(/\D/g, '');
-    let formatted = clean;
-    if (clean.length > 1) {
-        formatted = clean.slice(0, 1) + '-' + clean.slice(1);
-    }
-    if (clean.length > 5) {
-        formatted = formatted.slice(0, 6) + '-' + formatted.slice(6);
-    }
-    return formatted;
-}
-
 export interface Student {
     id: string;
-    ced: string;
+    cedula: string;
     centerId: string;
     centerName: string;
-
     createdAt: FirebaseFirestore.Timestamp | null;
-
-    name: string;
-    name_lower: string;
-
-    lastName1: string;
-    lastName1_lower: string;
-
-    lastName2: string;
-    lastName2_lower: string;
-
+    updatedAt: FirebaseFirestore.Timestamp | null;
+    name: string | null;
+    lastName1: string | null;
+    lastName2: string | null;
+    fullName: string | null;
+    fullName_lower: string | null;
+    grupoId: string | null;
+    grupoNombre: string | null;
     periodoLectivo: string;
-    seccion: string;
-
-    specialty?: string;
+    specialty: string | null;
+    birthdate: string | null;
 }
 
 
@@ -80,6 +64,7 @@ export async function GET(request: Request) {
         const lastVisibleId = searchParams.get("lastVisibleId");
         const search = searchParams.get("search");
         const period = searchParams.get("period");
+        const grupoId = searchParams.get("grupoId");
 
         if (!period) {
             return NextResponse.json({ error: "Period is required" }, { status: 400 });
@@ -100,38 +85,41 @@ export async function GET(request: Request) {
         let newLastVisibleId = null;
 
         if (search) {
-            // Search logic
-            const cleanSearch = search.replace(/-/g, '');
-            const isNumeric = /^\d+$/.test(cleanSearch) && cleanSearch.length > 0;
+            // Search logic - search by cedula or fullName_lower
+            const searchLower = search.toLowerCase().trim();
+            const searchEnd = searchLower + "\uf8ff";
 
-            if (isNumeric) {
-                // Search by Cedula (Prefix match with formatting)
-                const formattedCedula = formatCedula(cleanSearch);
-                const endCedula = formattedCedula + "\uf8ff";
+            // Try searching by cedula first (if looks like a cedula)
+            const isCedulaLike = /^[\d\-]+$/.test(search.trim());
 
+            if (isCedulaLike) {
+                // Search by cedula (prefix match)
+                const cleanSearch = search.replace(/-/g, '').trim();
                 const snapshot = await studentsRef
-                    .where("ced", ">=", formattedCedula)
-                    .where("ced", "<=", endCedula)
+                    .where("cedula", ">=", cleanSearch)
+                    .where("cedula", "<=", cleanSearch + "\uf8ff")
                     .limit(limit)
                     .get();
                 students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
-            } else {
-                // Search by Name/LastNames (Prefix match)
-                // Firestore doesn't support OR across different fields natively, so we run parallel queries.
-                // Note: This is case-sensitive.
-                const term = search;
-                const endTerm = term + "\uf8ff";
-                const termLower = term.toLowerCase();
-                const endTermLower = termLower + "\uf8ff";
+            }
 
-                const [nameSnap, lastName1Snap, lastName2Snap, nameLowerSnap, lastName1LowerSnap, lastName2LowerSnap] = await Promise.all([
-                    studentsRef.where("name", ">=", term).where("name", "<=", endTerm).get(),
-                    studentsRef.where("lastName1", ">=", term).where("lastName1", "<=", endTerm).get(),
-                    studentsRef.where("lastName2", ">=", term).where("lastName2", "<=", endTerm).get(),
-                    // Case-insensitive queries (requires data to have _lower fields)
-                    studentsRef.where("name_lower", ">=", termLower).where("name_lower", "<=", endTermLower).get(),
-                    studentsRef.where("lastName1_lower", ">=", termLower).where("lastName1_lower", "<=", endTermLower).get(),
-                    studentsRef.where("lastName2_lower", ">=", termLower).where("lastName2_lower", "<=", endTermLower).get()
+            // If no results from cedula search or it wasn't cedula-like, search by name
+            if (students.length === 0) {
+                const fullNameSnap = await studentsRef
+                    .where("fullName_lower", ">=", searchLower)
+                    .where("fullName_lower", "<=", searchEnd)
+                    .limit(limit)
+                    .get();
+
+                students = fullNameSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+            }
+
+            // If still no results, try individual name fields
+            if (students.length === 0) {
+                const [nameSnap, lastName1Snap, lastName2Snap] = await Promise.all([
+                    studentsRef.where("name", ">=", search).where("name", "<=", search + "\uf8ff").limit(limit).get(),
+                    studentsRef.where("lastName1", ">=", search).where("lastName1", "<=", search + "\uf8ff").limit(limit).get(),
+                    studentsRef.where("lastName2", ">=", search).where("lastName2", "<=", search + "\uf8ff").limit(limit).get(),
                 ]);
 
                 // Merge results by ID to avoid duplicates
@@ -148,34 +136,40 @@ export async function GET(request: Request) {
                 addToMap(nameSnap);
                 addToMap(lastName1Snap);
                 addToMap(lastName2Snap);
-                addToMap(nameLowerSnap);
-                addToMap(lastName1LowerSnap);
-                addToMap(lastName2LowerSnap);
 
                 students = Array.from(studentsMap.values());
 
-                // Sort by name in memory
+                // Sort by fullName in memory
                 students.sort((a: Student, b: Student) => {
-                    const nameA = `${a.name || ''} ${a.lastName1 || ''} ${a.lastName2 || ''}`.toLowerCase();
-                    const nameB = `${b.name || ''} ${b.lastName1 || ''} ${b.lastName2 || ''}`.toLowerCase();
+                    const nameA = (a.fullName || '').toLowerCase();
+                    const nameB = (b.fullName || '').toLowerCase();
                     return nameA.localeCompare(nameB);
                 });
 
-                // Apply limit (and simple offset pagination if we wanted, but for now just limit)
-                // If we wanted to support pagination with search, we'd need to filter after the lastVisibleId in memory
-                // which is inefficient for large result sets but okay for search results usually.
-                if (lastVisibleId) {
-                    const startIndex = students.findIndex((s: Student) => s.id === lastVisibleId);
-                    if (startIndex !== -1) {
-                        students = students.slice(startIndex + 1);
-                    }
-                }
-
                 students = students.slice(0, limit);
             }
+        } else if (grupoId) {
+            // Filter by group - needs composite index: grupoId ASC, cedula ASC
+            let studentsQuery = studentsRef
+                .where("grupoId", "==", grupoId)
+                .orderBy("cedula")
+                .limit(limit);
+
+            if (lastVisibleId) {
+                const lastVisibleDoc = await studentsRef.doc(lastVisibleId).get();
+                if (lastVisibleDoc.exists) {
+                    studentsQuery = studentsQuery.startAfter(lastVisibleDoc);
+                }
+            }
+
+            const snapshot = await studentsQuery.get();
+            students = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Student));
         } else {
-            // Standard Pagination Logic
-            let studentsQuery = studentsRef.orderBy("name").limit(limit);
+            // Standard Pagination Logic - order by cedula (always exists as doc ID)
+            let studentsQuery = studentsRef.orderBy("cedula").limit(limit);
 
             if (lastVisibleId) {
                 const lastVisibleDoc = await studentsRef.doc(lastVisibleId).get();
@@ -194,9 +188,24 @@ export async function GET(request: Request) {
         // Determine the last visible ID for the next page
         newLastVisibleId = students.length > 0 ? students[students.length - 1].id : null;
 
+        // Get total count for pagination (only when not searching)
+        let totalCount = 0;
+        try {
+            if (!search) {
+                const countSnapshot = await studentsRef.count().get();
+                totalCount = countSnapshot.data().count;
+            }
+        } catch (countError) {
+            console.error("Error getting count:", countError);
+            // If count fails, estimate based on current page
+            totalCount = students.length;
+        }
+
         return NextResponse.json({
             students,
-            lastVisibleId: newLastVisibleId
+            lastVisibleId: newLastVisibleId,
+            totalCount,
+            totalPages: totalCount > 0 ? Math.ceil(totalCount / limit) : 0
         });
 
     } catch (error) {

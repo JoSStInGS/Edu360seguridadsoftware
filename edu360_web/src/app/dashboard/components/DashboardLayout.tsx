@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { label: "Inicio", icon: "home", href: "/dashboard" },
   { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
   { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
-  { label: "Grupos/Secciones", icon: "groups", href: "#" },
+  { label: "Grupos/Secciones", icon: "groups", href: "/dashboard/groups" },
   { label: "Asistencia", icon: "event_available", href: "#" },
   { label: "Reportes", icon: "monitoring", href: "#" },
   { label: "Configuración", icon: "settings", href: "#" },
@@ -111,15 +111,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="my-2 border-t border-[rgba(21,53,147,0.1)] dark:border-[rgba(255,255,255,0.1)]" />
 
           <Link
-            href="/dashboard/schedules/import"
-            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs ${pathname === "/dashboard/schedules/import"
-                ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
-                : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]"
+            href="/dashboard/schedules"
+            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs ${pathname === "/dashboard/schedules" || pathname.startsWith("/dashboard/schedules/") && pathname !== "/dashboard/schedules/import"
+              ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
+              : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]"
               }`}
             onClick={onNavigate}
           >
             <span className="material-symbols-outlined">calendar_month</span>
-            <span className="font-semibold">Importar Horarios</span>
+            <span className="font-semibold">Horarios</span>
           </Link>
         </nav>
       </div>

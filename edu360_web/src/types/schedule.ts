@@ -25,6 +25,16 @@ export interface ScheduleGroup {
     nombreCorto: string;
     aulaAsignada?: string;
     source: "import" | "manual";
+    hasDivisions?: boolean;
+    divisions?: ScheduleDivision[];
+}
+
+export interface ScheduleDivision {
+    id: string;
+    nombre: string;
+    grupoId: string; // classid - referencia al grupo/clase padre
+    entireClass: boolean; // true si es "La clase entera"
+    divisionTag: number; // 0 = clase entera, 1+ = tipo de división
 }
 
 export interface ScheduleClassroom {
@@ -86,6 +96,10 @@ export interface ScheduleEntry {
     // Grupo (desnormalizado)
     grupoId: string;
     grupoNombre: string;
+    // División/Subgrupo (desnormalizado)
+    divisionId?: string;
+    divisionNombre?: string;
+    isEntireClass?: boolean; // true si aplica a la clase completa
     // Asignatura (desnormalizado)
     asignaturaId: string;
     asignaturaNombre: string;
@@ -105,6 +119,7 @@ export interface ScheduleImportPayload {
         profesores: ScheduleTeacher[];
         asignaturas: ScheduleSubject[];
         grupos: ScheduleGroup[];
+        divisiones: ScheduleDivision[];
         aulas: ScheduleClassroom[];
         periodosHorario: ScheduleTimeSlot[];
         horarios: ScheduleEntry[];
@@ -128,6 +143,7 @@ export interface SchedulePreviewData {
     stats: ScheduleStats;
     profesores: ScheduleTeacher[];
     grupos: ScheduleGroup[];
+    divisiones: ScheduleDivision[];
     asignaturas: ScheduleSubject[];
     aulas: ScheduleClassroom[];
     periodosHorario: ScheduleTimeSlot[];

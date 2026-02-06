@@ -8,18 +8,18 @@ import { usePeriodStore } from "@/app/stores/usePeriodStore";
 
 type Student = {
   id: string;
-  ced: string;
-  name: string;
-  lastName1: string;
-  lastName2: string;
-  birthdate?: string;
-  level?: string;
-  secction?: string;
-  status?: string;
-  specialty?: string;
+  cedula: string;
+  name: string | null;
+  lastName1: string | null;
+  lastName2: string | null;
+  fullName: string | null;
+  birthdate: string | null;
+  grupoId: string | null;
+  grupoNombre: string | null;
+  specialty: string | null;
 };
 
-function calculateAge(birthdate?: string) {
+function calculateAge(birthdate?: string | null) {
   if (!birthdate) return "-";
 
   let birth: Date;
@@ -57,6 +57,8 @@ export default function StudentsPage() {
   const [page, setPage] = useState(1);
   const cursors = useRef<Record<number, string | null>>({ 1: null });
   const [hasMore, setHasMore] = useState(true);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,7 +82,7 @@ export default function StudentsPage() {
 
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!user) return;
+      if (!user || !selectedPeriod) return;
 
       setLoadingData(true);
       try {
@@ -89,9 +91,7 @@ export default function StudentsPage() {
         // Construct URL with pagination and search params
         const url = new URL("/api/students", window.location.origin);
         url.searchParams.set("limit", "10");
-        if (selectedPeriod) {
-          url.searchParams.set("period", selectedPeriod);
-        }
+        url.searchParams.set("period", selectedPeriod);
 
         if (debouncedSearch) {
           url.searchParams.set("search", debouncedSearch);
@@ -109,13 +109,16 @@ export default function StudentsPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to fetch students");
+          const errorData = await response.json().catch(() => ({}));
+          console.error("API Error:", response.status, errorData);
+          throw new Error(errorData.error || "Failed to fetch students");
         }
 
         const data = await response.json();
         setStudents(data.students || []);
+        setTotalCount(data.totalCount || 0);
+        setTotalPages(data.totalPages || 0);
 
-        // Update cursor for the next page
         // Update cursor for the next page
         if (data.lastVisibleId) {
           cursors.current = { ...cursors.current, [page + 1]: data.lastVisibleId };
@@ -136,16 +139,16 @@ export default function StudentsPage() {
       }
     };
 
-    if (!authLoading) {
+    if (!authLoading && selectedPeriod) {
       if (user) {
         fetchStudents();
       } else {
         setLoadingData(false);
       }
     }
-  }, [user, authLoading, page, debouncedSearch, selectedPeriod]); // Re-fetch when page or search changes
+  }, [user, authLoading, page, debouncedSearch, selectedPeriod]);
 
-  if (authLoading || loadingData && students.length === 0) { // Show loading only on initial load or if no data
+  if (authLoading || loadingData && students.length === 0) {
     return (
       <div className="flex h-64 w-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary)] border-t-transparent"></div>
@@ -163,6 +166,51 @@ export default function StudentsPage() {
     if (hasMore) {
       setPage(p => p + 1);
     }
+  };
+
+  const handleGoToPage = (pageNum: number) => {
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setPage(pageNum);
+    }
+  };
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible + 2) {
+      // Show all pages if there are few
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show first page
+      pages.push(1);
+
+      if (page > 3) {
+        pages.push('...');
+      }
+
+      // Show pages around current page
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (page < totalPages - 2) {
+        pages.push('...');
+      }
+
+      // Always show last page
+      if (totalPages > 1) {
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
   };
 
   return (
@@ -210,12 +258,12 @@ export default function StudentsPage() {
 
           <div className="xl:col-span-2">
             <label className="text-sm font-medium text-transparent select-none">
-              Búsqueda
+              Busqueda
             </label>
             <div className="relative mt-1">
               <input
                 type="search"
-                placeholder="Buscar por nombre o ID"
+                placeholder="Buscar por nombre o cedula"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full h-10 rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
@@ -246,53 +294,130 @@ export default function StudentsPage() {
                     Nombre completo
                   </th>
                   <th scope="col" className="px-6 py-3 font-medium">Edad</th>
-                  <th scope="col" className="px-6 py-3 font-medium">Seccion</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Grupo</th>
                   <th scope="col" className="px-6 py-3 font-medium">Especialidad</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student) => {
+                  const displayName = student.fullName ||
+                    [student.name, student.lastName1, student.lastName2].filter(Boolean).join(" ") ||
+                    "-";
+
                   return (
                     <tr
                       key={student.id}
                       className="border-b border-[var(--border-light)] bg-transparent text-[var(--foreground-light)] last:border-0 dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)]"
                     >
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.ced}</td>
-                      <td className="whitespace-nowrap px-6 py-4 font-medium">{`${student.name} ${student.lastName1} ${student.lastName2}`}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{calculateAge(student.birthdate)}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.secction ?? "-"}</td>
-                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">{student.specialty ?? "-"}</td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                        {student.cedula || "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 font-medium">
+                        {displayName}
+                      </td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                        {calculateAge(student.birthdate)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {student.grupoNombre ? (
+                          <span className="inline-flex items-center rounded-full bg-[rgba(21,53,147,0.1)] px-2.5 py-0.5 text-xs font-medium text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]">
+                            {student.grupoNombre}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--muted-light)] dark:text-[var(--muted-dark)]">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                        {student.specialty || "-"}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            <div className="flex items-center justify-between px-6 py-4 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-              <span>
-                Página <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">{page}</span>
+            <div className="flex flex-col items-center justify-between gap-4 border-t border-[var(--border-light)] px-6 py-4 text-sm dark:border-[var(--border-dark)] sm:flex-row">
+              <span className="text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                Mostrando <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">{students.length}</span> de{" "}
+                <span className="font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">{totalCount}</span> estudiantes
+                {totalPages > 0 && (
+                  <span className="ml-2">
+                    (Pagina {page} de {totalPages})
+                  </span>
+                )}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {/* First page button */}
+                <button
+                  onClick={() => handleGoToPage(1)}
+                  disabled={page === 1}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${page === 1
+                    ? "cursor-default opacity-50"
+                    : "hover:bg-[rgba(15,23,42,0.08)] text-[var(--muted-light)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:text-[var(--muted-dark)] dark:hover:text-[var(--foreground-dark)]"
+                    }`}
+                  title="Primera pagina"
+                >
+                  <span className="material-symbols-outlined text-lg">first_page</span>
+                </button>
+
+                {/* Previous button */}
                 <button
                   onClick={handlePrevPage}
                   disabled={page === 1}
-                  className={`flex items-center gap-1 rounded-lg px-3 py-1 text-sm font-medium transition ${page === 1
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${page === 1
                     ? "cursor-default opacity-50"
-                    : "hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                    : "hover:bg-[rgba(15,23,42,0.08)] text-[var(--muted-light)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:text-[var(--muted-dark)] dark:hover:text-[var(--foreground-dark)]"
                     }`}
+                  title="Pagina anterior"
                 >
                   <span className="material-symbols-outlined text-lg">chevron_left</span>
-                  Anterior
                 </button>
+
+                {/* Page numbers */}
+                <div className="flex items-center gap-1">
+                  {getPageNumbers().map((pageNum, index) => (
+                    pageNum === '...' ? (
+                      <span key={`ellipsis-${index}`} className="flex h-9 w-9 items-center justify-center text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={pageNum}
+                        onClick={() => handleGoToPage(pageNum as number)}
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition ${page === pageNum
+                          ? "bg-[var(--primary)] text-white"
+                          : "hover:bg-[rgba(15,23,42,0.08)] text-[var(--muted-light)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:text-[var(--muted-dark)] dark:hover:text-[var(--foreground-dark)]"
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  ))}
+                </div>
+
+                {/* Next button */}
                 <button
                   onClick={handleNextPage}
-                  disabled={!hasMore}
-                  className={`flex items-center gap-1 rounded-lg px-3 py-1 text-sm font-medium transition ${!hasMore
+                  disabled={!hasMore || page >= totalPages}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${!hasMore || page >= totalPages
                     ? "cursor-default opacity-50"
-                    : "hover:bg-[rgba(15,23,42,0.08)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--foreground-dark)]"
+                    : "hover:bg-[rgba(15,23,42,0.08)] text-[var(--muted-light)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:text-[var(--muted-dark)] dark:hover:text-[var(--foreground-dark)]"
                     }`}
+                  title="Pagina siguiente"
                 >
-                  Siguiente
                   <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+
+                {/* Last page button */}
+                <button
+                  onClick={() => handleGoToPage(totalPages)}
+                  disabled={page >= totalPages}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${page >= totalPages
+                    ? "cursor-default opacity-50"
+                    : "hover:bg-[rgba(15,23,42,0.08)] text-[var(--muted-light)] hover:text-[var(--foreground-light)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:text-[var(--muted-dark)] dark:hover:text-[var(--foreground-dark)]"
+                    }`}
+                  title="Ultima pagina"
+                >
+                  <span className="material-symbols-outlined text-lg">last_page</span>
                 </button>
               </div>
             </div>

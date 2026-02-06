@@ -18,6 +18,22 @@ type FieldMapping = {
   required?: boolean;
 };
 
+type InvalidStudent = {
+  cedula: string;
+  nombre: string;
+  seccionOriginal: string;
+  razon: string;
+};
+
+type ImportResult = {
+  ok: boolean;
+  processed: number;
+  updated: number;
+  skipped: number;
+  invalidStudents: InvalidStudent[];
+  hasInvalidStudents: boolean;
+};
+
 const FIELD_MAPPINGS: FieldMapping[] = [
   {
     label: "Cédula",
@@ -149,6 +165,7 @@ export default function ImportStudentsPage() {
   const [periodoLectivo, setPeriodoLectivo] = useState<string>("");
   const [centerName, setCenterName] = useState<string>("Cargando...");
   const [phase, setPhase] = useState<"mapping" | "processing" | "success">("mapping");
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Calculate available options
   const currentYear = new Date().getFullYear().toString();
@@ -269,6 +286,7 @@ export default function ImportStudentsPage() {
     setImportFeedback(null);
     setImportError(null);
     setPhase("mapping");
+    setImportResult(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -354,10 +372,11 @@ export default function ImportStudentsPage() {
 
     try {
       const res = await fetch("/api/import", { method: "POST", body: formData });
+      const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
         throw new Error(payload.error || "Fallo al subir el archivo");
       }
+      setImportResult(payload as ImportResult);
       setImportFeedback("Datos enviados...");
       setPhase("success");
     } catch (error) {
@@ -637,52 +656,95 @@ export default function ImportStudentsPage() {
         </div>
       )}
 
-      {phase === "success" && (
-        <div className="rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-8 text-center shadow-lg transition-all dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-          <div className="flex flex-col items-center gap-4">
-            <span className="material-symbols-outlined" style={{ fontSize: "72px", color: "#16A34A" }}>check_circle</span>
-            <h2 className="text-3xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">¡Importación completada!</h2>
-            <p className="max-w-md text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-              El archivo ha sido procesado y los estudiantes han sido agregados a la plataforma.
-            </p>
-            <div className="mt-4 w-full max-w-lg">
-              <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(22,163,74,0.2)" }}>
-                <div className="h-full w-full rounded-full" style={{ backgroundColor: "#16A34A" }} />
+      {phase === "success" && importResult && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-8 text-center shadow-lg transition-all dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+            <div className="flex flex-col items-center gap-4">
+              <span className="material-symbols-outlined" style={{ fontSize: "72px", color: "#16A34A" }}>check_circle</span>
+              <h2 className="text-3xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">¡Importación completada!</h2>
+              <p className="max-w-md text-lg text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                El archivo ha sido procesado y los estudiantes han sido agregados a la plataforma.
+              </p>
+              <div className="mt-4 w-full max-w-lg">
+                <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(22,163,74,0.2)" }}>
+                  <div className="h-full w-full rounded-full" style={{ backgroundColor: "#16A34A" }} />
+                </div>
+                <p className="mt-2 text-sm font-medium" style={{ color: "#16A34A" }}>100% completado</p>
               </div>
-              <p className="mt-2 text-sm font-medium" style={{ color: "#16A34A" }}>100% completado</p>
-            </div>
-            <div className="mt-6 flex flex-col gap-4 divide-y divide-[var(--border-light)] dark:divide-[var(--border-dark)] sm:flex-row sm:divide-x sm:divide-y-0">
-              <div className="px-6 py-2 text-center">
-                <p className="text-2xl font-bold text-[var(--primary)]">125</p>
-                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Nuevos estudiantes creados</p>
+              <div className="mt-6 flex flex-col gap-4 divide-y divide-[var(--border-light)] dark:divide-[var(--border-dark)] sm:flex-row sm:divide-x sm:divide-y-0">
+                <div className="px-6 py-2 text-center">
+                  <p className="text-2xl font-bold text-[var(--primary)]">{importResult.processed}</p>
+                  <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Nuevos estudiantes creados</p>
+                </div>
+                <div className="px-6 py-2 text-center">
+                  <p className="text-2xl font-bold text-[var(--primary)]">{importResult.updated}</p>
+                  <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Estudiantes actualizados</p>
+                </div>
+                <div className="px-6 py-2 text-center">
+                  <p className="text-2xl font-bold" style={{ color: importResult.skipped > 0 ? "#e73c08" : "#16A34A" }}>{importResult.skipped}</p>
+                  <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Registros omitidos</p>
+                </div>
               </div>
-              <div className="px-6 py-2 text-center">
-                <p className="text-2xl font-bold text-[var(--primary)]">25</p>
-                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Estudiantes actualizados</p>
+              <p className="mt-2 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                Resultado de la importación desde el archivo <strong>{selectedFile?.name}</strong>.
+              </p>
+              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+                <Link href="/dashboard/students" className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-6 py-3 text-base font-semibold text-white shadow-sm hover:brightness-110">
+                  <span className="material-symbols-outlined">group</span>
+                  Ver estudiantes
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleResetSelection}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-[var(--border-light)] bg-transparent px-6 py-3 text-base font-semibold text-[var(--foreground-light)] hover:bg-[rgba(21,53,147,0.06)] dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)] dark:hover:bg-[rgba(21,53,147,0.12)]"
+                >
+                  <span className="material-symbols-outlined">upload_file</span>
+                  Nueva importación
+                </button>
               </div>
-              <div className="px-6 py-2 text-center">
-                <p className="text-2xl font-bold" style={{ color: "#e73c08" }}>0</p>
-                <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">Registros con errores</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-              Resultado de la importación desde el archivo <strong>{selectedFile?.name}</strong>.
-            </p>
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <a href="/dashboard/students" className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-6 py-3 text-base font-semibold text-white shadow-sm hover:brightness-110">
-                <span className="material-symbols-outlined">group</span>
-                Ver estudiantes
-              </a>
-              <button
-                type="button"
-                onClick={handleResetSelection}
-                className="flex items-center justify-center gap-2 rounded-lg border border-[var(--border-light)] bg-transparent px-6 py-3 text-base font-semibold text-[var(--foreground-light)] hover:bg-[rgba(21,53,147,0.06)] dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)] dark:hover:bg-[rgba(21,53,147,0.12)]"
-              >
-                <span className="material-symbols-outlined">upload_file</span>
-                Nueva importación
-              </button>
             </div>
           </div>
+
+          {importResult.hasInvalidStudents && importResult.invalidStudents.length > 0 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 shadow-sm dark:border-amber-700 dark:bg-amber-900/20">
+              <div className="border-b border-amber-200 px-6 py-4 dark:border-amber-700/50">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-2xl text-amber-600 dark:text-amber-400">warning</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200">
+                      Estudiantes con sección no registrada
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Los siguientes {importResult.invalidStudents.length} estudiantes fueron importados pero su sección no existe en el sistema.
+                      Se recomienda importar primero los horarios para crear los grupos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="max-h-80 overflow-auto">
+                <table className="min-w-full divide-y divide-amber-200 dark:divide-amber-700/50">
+                  <thead className="bg-amber-100/50 dark:bg-amber-900/30">
+                    <tr className="text-left text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      <th scope="col" className="px-6 py-3 font-semibold">Cédula</th>
+                      <th scope="col" className="px-6 py-3 font-semibold">Nombre</th>
+                      <th scope="col" className="px-6 py-3 font-semibold">Sección en archivo</th>
+                      <th scope="col" className="px-6 py-3 font-semibold">Razón</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-200 dark:divide-amber-700/50">
+                    {importResult.invalidStudents.map((student, index) => (
+                      <tr key={`${student.cedula}-${index}`} className="text-amber-800 dark:text-amber-200">
+                        <td className="whitespace-nowrap px-6 py-3 text-sm font-medium">{student.cedula}</td>
+                        <td className="whitespace-nowrap px-6 py-3 text-sm">{student.nombre}</td>
+                        <td className="whitespace-nowrap px-6 py-3 text-sm">{student.seccionOriginal}</td>
+                        <td className="px-6 py-3 text-sm">{student.razon}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

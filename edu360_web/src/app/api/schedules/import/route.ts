@@ -6,6 +6,7 @@ import type {
     ScheduleTeacher,
     ScheduleSubject,
     ScheduleGroup,
+    ScheduleDivision,
     ScheduleClassroom,
     ScheduleTimeSlot,
     ScheduleEntry,
@@ -20,6 +21,7 @@ interface ImportPayload {
         profesores: ScheduleTeacher[];
         asignaturas: ScheduleSubject[];
         grupos: ScheduleGroup[];
+        divisiones: ScheduleDivision[];
         aulas: ScheduleClassroom[];
         periodosHorario: ScheduleTimeSlot[];
         horarios: ScheduleEntry[];
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
             profesores = [],
             asignaturas = [],
             grupos = [],
+            divisiones = [],
             aulas = [],
             periodosHorario = [],
             horarios = []
@@ -166,7 +169,17 @@ export async function POST(request: Request) {
             nombre: g.nombre,
             nombreCorto: g.nombreCorto,
             aulaAsignada: g.aulaAsignada || null,
+            hasDivisions: g.hasDivisions || false,
             source: g.source
+        }));
+
+        // Divisiones (subgrupos de cada clase)
+        await saveToCollection("divisiones", divisiones, (d) => ({
+            id: d.id,
+            nombre: d.nombre,
+            grupoId: d.grupoId,
+            entireClass: d.entireClass,
+            divisionTag: d.divisionTag
         }));
 
         // Aulas
@@ -205,6 +218,10 @@ export async function POST(request: Request) {
             // Grupo (desnormalizado)
             grupoId: h.grupoId,
             grupoNombre: h.grupoNombre,
+            // División (desnormalizado)
+            divisionId: h.divisionId || null,
+            divisionNombre: h.divisionNombre || null,
+            isEntireClass: h.isEntireClass ?? true,
             // Asignatura (desnormalizado)
             asignaturaId: h.asignaturaId,
             asignaturaNombre: h.asignaturaNombre,
@@ -232,6 +249,7 @@ export async function POST(request: Request) {
                 profesores: profesores.length,
                 asignaturas: asignaturas.length,
                 grupos: grupos.length,
+                divisiones: divisiones.length,
                 aulas: aulas.length,
                 periodosHorario: periodosHorario.length,
                 horarios: horarios.length

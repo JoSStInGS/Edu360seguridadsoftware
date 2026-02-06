@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, DragEvent, ChangeEvent } from "react";
+import { useState, useEffect, DragEvent, ChangeEvent } from "react";
+import Link from "next/link";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import type {
     ScheduleTeacher,
     ScheduleSubject,
     ScheduleGroup,
+    ScheduleDivision,
     ScheduleClassroom,
     ScheduleTimeSlot,
     ScheduleEntry,
@@ -76,6 +78,25 @@ export default function ImportSchedulePage() {
     // Datos parseados
     const [previewData, setPreviewData] = useState<SchedulePreviewData | null>(null);
     const [activeTab, setActiveTab] = useState<PreviewTab>("horarios");
+    const [hasExistingSchedule, setHasExistingSchedule] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        async function checkExisting() {
+            setHasExistingSchedule(null);
+            if (!selectedPeriod || !user) return;
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch(`/api/schedules?period=${selectedPeriod}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                setHasExistingSchedule(data.hasSchedules);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        checkExisting();
+    }, [selectedPeriod, user]);
 
     // ============================================
     // PARSER XML
@@ -87,7 +108,30 @@ export default function ImportSchedulePage() {
         setImportStatus("idle");
 
         try {
-            const text = await xmlFile.text();
+            // Leer el archivo como ArrayBuffer para poder detectar/usar la codificación correcta
+            const arrayBuffer = await xmlFile.arrayBuffer();
+
+            // Primero intentamos leer una porción para detectar el encoding del XML
+            const previewDecoder = new TextDecoder("utf-8");
+            const preview = previewDecoder.decode(arrayBuffer.slice(0, 200));
+
+            // Buscar el encoding en la declaración XML: <?xml version="1.0" encoding="XXX"?>
+            let encoding = "utf-8";
+            const encodingMatch = preview.match(/encoding=["']([^"']+)["']/i);
+            if (encodingMatch) {
+                encoding = encodingMatch[1].toLowerCase();
+                // Mapear nombres comunes de encoding
+                if (encoding === "windows-1252" || encoding === "cp1252") {
+                    encoding = "windows-1252";
+                } else if (encoding === "iso-8859-1" || encoding === "latin1" || encoding === "latin-1") {
+                    encoding = "iso-8859-1";
+                }
+            }
+
+            // Decodificar con la codificación detectada
+            const decoder = new TextDecoder(encoding);
+            const text = decoder.decode(arrayBuffer);
+
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(text, "text/xml");
 
@@ -136,8 +180,39 @@ export default function ImportSchedulePage() {
                     nombre: getAttr(el, "name"),
                     nombreCorto: getAttr(el, "short"),
                     aulaAsignada: getAttr(el, "classroomids") || undefined,
-                    source: "import"
+                    source: "import",
+                    hasDivisions: false,
+                    divisions: []
                 });
+            });
+
+            // Divisiones (groups en el XML) - subgrupos de cada clase
+            const divisionesMap = new Map<string, ScheduleDivision>();
+            Array.from(xmlDoc.getElementsByTagName("group")).forEach(el => {
+                const id = getAttr(el, "id");
+                const classId = getAttr(el, "classid");
+                const entireClass = getAttr(el, "entireclass") === "1";
+                const divisionTag = parseInt(getAttr(el, "divisiontag") || "0", 10);
+
+                const division: ScheduleDivision = {
+                    id,
+                    nombre: getAttr(el, "name"),
+                    grupoId: classId,
+                    entireClass,
+                    divisionTag
+                };
+
+                divisionesMap.set(id, division);
+
+                // Agregar la división al grupo correspondiente
+                const grupo = gruposMap.get(classId);
+                if (grupo) {
+                    if (!entireClass) {
+                        grupo.hasDivisions = true;
+                    }
+                    grupo.divisions = grupo.divisions || [];
+                    grupo.divisions.push(division);
+                }
             });
 
             // Aulas
@@ -209,12 +284,16 @@ export default function ImportSchedulePage() {
                 const aulaId = getAttr(cardEl, "classroomids") || lesson.classroomIds[0] || "";
                 const aula = aulasMap.get(aulaId);
 
-                // Generar entradas para cada combinación profesor-grupo
+                // Generar entradas para cada combinación profesor-grupo-división
                 for (const teacherId of lesson.teacherIds) {
-                    for (const classId of lesson.classIds) {
+                    // Iterar por los groupIds de la lesson (que son las divisiones)
+                    for (const groupId of lesson.groupIds) {
+                        const division = divisionesMap.get(groupId);
+                        if (!division) continue;
+
+                        const grupo = gruposMap.get(division.grupoId);
                         const profesor = profesoresMap.get(teacherId);
                         const asignatura = asignaturasMap.get(lesson.subjectId);
-                        const grupo = gruposMap.get(classId);
 
                         if (!profesor || !asignatura || !grupo) continue;
 
@@ -229,12 +308,45 @@ export default function ImportSchedulePage() {
                             profesorNombre: profesor.nombre,
                             grupoId: grupo.id,
                             grupoNombre: grupo.nombre,
+                            divisionId: division.id,
+                            divisionNombre: division.nombre,
+                            isEntireClass: division.entireClass,
                             asignaturaId: asignatura.id,
                             asignaturaNombre: asignatura.nombre,
                             aulaId: aula?.id || "",
                             aulaNombre: aula?.nombre || "",
                             source: "import"
                         });
+                    }
+
+                    // Fallback: si no hay groupIds, usar classIds directamente (compatibilidad con XML sin divisiones)
+                    if (lesson.groupIds.length === 0) {
+                        for (const classId of lesson.classIds) {
+                            const grupo = gruposMap.get(classId);
+                            const profesor = profesoresMap.get(teacherId);
+                            const asignatura = asignaturasMap.get(lesson.subjectId);
+
+                            if (!profesor || !asignatura || !grupo) continue;
+
+                            horarios.push({
+                                id: `entry_${cardIndex++}`,
+                                dia: day.name,
+                                diaIndex: day.index,
+                                periodo: periodo.periodo,
+                                horaInicio: periodo.horaInicio,
+                                horaFin: periodo.horaFin,
+                                profesorId: profesor.id,
+                                profesorNombre: profesor.nombre,
+                                grupoId: grupo.id,
+                                grupoNombre: grupo.nombre,
+                                isEntireClass: true,
+                                asignaturaId: asignatura.id,
+                                asignaturaNombre: asignatura.nombre,
+                                aulaId: aula?.id || "",
+                                aulaNombre: aula?.nombre || "",
+                                source: "import"
+                            });
+                        }
                     }
                 }
             });
@@ -255,6 +367,7 @@ export default function ImportSchedulePage() {
             const profesores = Array.from(profesoresMap.values());
             const asignaturas = Array.from(asignaturasMap.values());
             const grupos = Array.from(gruposMap.values());
+            const divisiones = Array.from(divisionesMap.values());
             const aulas = Array.from(aulasMap.values());
             const periodosHorario = Array.from(periodosMap.values()).sort((a, b) => a.periodo - b.periodo);
 
@@ -271,6 +384,7 @@ export default function ImportSchedulePage() {
                 stats,
                 profesores,
                 grupos,
+                divisiones,
                 asignaturas,
                 aulas,
                 periodosHorario,
@@ -359,6 +473,7 @@ export default function ImportSchedulePage() {
                         profesores: previewData.profesores,
                         asignaturas: previewData.asignaturas,
                         grupos: previewData.grupos,
+                        divisiones: previewData.divisiones,
                         aulas: previewData.aulas,
                         periodosHorario: previewData.periodosHorario,
                         horarios: previewData.horarios
@@ -420,15 +535,34 @@ export default function ImportSchedulePage() {
 
                 {/* Success State */}
                 {importStatus === "success" ? (
-                    <SuccessCard
-                        period={selectedPeriod}
-                        onReset={() => {
-                            setImportStatus("idle");
-                            setSelectedPeriod("");
-                        }}
-                    />
+                    <SuccessCard period={selectedPeriod} />
                 ) : (
                     <>
+                        {/* Contextual Message */}
+                        {selectedPeriod && hasExistingSchedule === true && (
+                            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/30 dark:bg-yellow-900/20 dark:text-yellow-300">
+                                <div className="flex items-center gap-2 font-bold">
+                                    <span className="material-symbols-outlined">warning</span>
+                                    Atención: Sobreescritura de datos
+                                </div>
+                                <p className="mt-1 ml-8">
+                                    Ya existen horarios cargados para este periodo ({selectedPeriod}). Si continuas con la importación,
+                                    <strong> los datos actuales serán reemplazados permanentemente.</strong>
+                                </p>
+                            </div>
+                        )}
+
+                        {selectedPeriod && hasExistingSchedule === false && (
+                            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/30 dark:bg-blue-900/20 dark:text-blue-300">
+                                <div className="flex items-center gap-2 font-bold">
+                                    <span className="material-symbols-outlined">info</span>
+                                    Primeros pasos
+                                </div>
+                                <p className="mt-1 ml-8">
+                                    No se encontraron horarios para el periodo {selectedPeriod}. Sube tu archivo XML para comenzar a configurar el calendario académico.
+                                </p>
+                            </div>
+                        )}
                         {/* Configuración */}
                         <ConfigurationCard
                             periods={periods}
@@ -531,11 +665,10 @@ function ConfigurationCard({
             {/* Dropzone */}
             <div className="p-8">
                 <div
-                    className={`relative group border-2 border-dashed transition-all rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer ${
-                        dragActive
+                    className={`relative group border-2 border-dashed transition-all rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer ${dragActive
                             ? "border-[var(--primary)] bg-[var(--primary)]/5"
                             : "border-[var(--border-light)] dark:border-[var(--border-dark)] bg-[var(--background-light)]/50 dark:bg-[var(--background-dark)]/50 hover:bg-[var(--primary)]/5 hover:border-[var(--primary)]/50"
-                    }`}
+                        }`}
                     onDragEnter={onDrag}
                     onDragLeave={onDrag}
                     onDragOver={onDrag}
@@ -584,7 +717,7 @@ function LoadingCard() {
     );
 }
 
-function SuccessCard({ period, onReset }: { period: string; onReset: () => void }) {
+function SuccessCard({ period }: { period: string }) {
     return (
         <div className="bg-[var(--card-light)] dark:bg-[var(--card-dark)] rounded-xl border border-green-200 dark:border-green-800 p-8 flex flex-col items-center justify-center text-center shadow-sm">
             <div className="size-16 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 flex items-center justify-center mb-4">
@@ -596,12 +729,13 @@ function SuccessCard({ period, onReset }: { period: string; onReset: () => void 
             <p className="text-[var(--muted-light)] dark:text-[var(--muted-dark)] max-w-md mb-6">
                 Los horarios han sido cargados correctamente para el periodo <strong>{period}</strong>.
             </p>
-            <button
-                onClick={onReset}
-                className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg font-medium hover:bg-[var(--primary)]/90"
+            <Link
+                href="/dashboard/schedules"
+                className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg font-medium hover:bg-[var(--primary)]/90 inline-flex items-center gap-2"
             >
-                Realizar otra importación
-            </button>
+                <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+                Ver Horarios
+            </Link>
         </div>
     );
 }
@@ -644,17 +778,15 @@ function PreviewSection({
                         <button
                             key={tab.id}
                             onClick={() => onTabChange(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                activeTab === tab.id
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.id
                                     ? "bg-[var(--primary)] text-white shadow-md"
                                     : "bg-white dark:bg-gray-800 text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] border border-[var(--border-light)] dark:border-[var(--border-dark)] hover:bg-gray-50 dark:hover:bg-gray-700"
-                            }`}
+                                }`}
                         >
                             <span className="material-symbols-outlined text-lg">{tab.icon}</span>
                             {tab.label}
-                            <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                activeTab === tab.id ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700"
-                            }`}>
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${activeTab === tab.id ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700"
+                                }`}>
                                 {tab.id === "horarios" && data.stats.totalHorarios}
                                 {tab.id === "profesores" && data.stats.profesores}
                                 {tab.id === "grupos" && data.stats.grupos}
