@@ -19,6 +19,7 @@ export default function CompleteProfilePage() {
   const [role, setRole] = useState<'admin' | 'professor' | null>(null)
   const [activationCode, setActivationCode] = useState('')
   const [step, setStep] = useState(1)
+  const [profesorId, setProfesorId] = useState<string | null>(null)
 
   // Error States
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -102,15 +103,25 @@ export default function CompleteProfilePage() {
       const data = await response.json()
 
       if (data.valid) {
+        // Save profesorId if present in the code
+        if (data.profesorId) {
+          setProfesorId(data.profesorId)
+        }
+
         // If user is already logged in (Complete Profile flow), update their profile directly
         if (user) {
           try {
-            await setDoc(doc(db, "users", user.uid), {
+            const profileData: Record<string, unknown> = {
               role: role,
               centerId: selectedCenterId, // Save ID
               centerName: selectedCenterName, // Save Name for display convenience
               updatedAt: new Date().toISOString(),
-            }, { merge: true })
+            }
+            if (data.profesorId) {
+              profileData.profesorId = data.profesorId
+            }
+
+            await setDoc(doc(db, "users", user.uid), profileData, { merge: true })
 
             router.push('/welcome')
           } catch (error) {
@@ -152,12 +163,16 @@ export default function CompleteProfilePage() {
       const u = await registerWithEmail(email, password)
 
       // Update profile with role and center
-      await setDoc(doc(db, "users", u.uid), {
+      const profileData: Record<string, unknown> = {
         role: role,
         centerId: selectedCenterId,
         centerName: selectedCenterName,
         updatedAt: new Date().toISOString(),
-      }, { merge: true })
+      }
+      if (profesorId) {
+        profileData.profesorId = profesorId
+      }
+      await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
 
       router.push('/welcome')
     } catch (error) {
@@ -179,12 +194,16 @@ export default function CompleteProfilePage() {
 
       if (u) {
         // Update profile with role and center
-        await setDoc(doc(db, "users", u.uid), {
+        const profileData: Record<string, unknown> = {
           role: role,
           centerId: selectedCenterId,
           centerName: selectedCenterName,
           updatedAt: new Date().toISOString(),
-        }, { merge: true })
+        }
+        if (profesorId) {
+          profileData.profesorId = profesorId
+        }
+        await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
 
         router.push('/welcome')
       }

@@ -62,7 +62,12 @@ export async function POST(request: Request) {
         }
 
         // If all checks pass
-        return NextResponse.json({ valid: true, message: "Código válido" });
+        return NextResponse.json({
+            valid: true,
+            message: "Código válido",
+            profesorId: data.profesorId || null,
+            periodId: data.periodId || null,
+        });
 
     } catch (error) {
         console.error("Error validating code:", error);

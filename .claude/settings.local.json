@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo install firebase @react-native-async-storage/async-storage expo-auth-session expo-crypto @expo-google-fonts/lexend)",
+      "Bash(npx expo install:*)",
+      "Bash(del \"C:\\\\Users\\\\Usuario\\\\Documents\\\\Edu360\\\\edu_mobile\\\\app\\\\\\(tabs\\)\\\\explore.tsx\")",
+      "Bash(del \"C:\\\\Users\\\\Usuario\\\\Documents\\\\Edu360\\\\edu_mobile\\\\app\\\\modal.tsx\")",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

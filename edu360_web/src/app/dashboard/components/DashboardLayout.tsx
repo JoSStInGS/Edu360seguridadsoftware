@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
   { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
   { label: "Grupos/Secciones", icon: "groups", href: "/dashboard/groups" },
+  { label: "Usuarios", icon: "manage_accounts", href: "/dashboard/users" },
   { label: "Asistencia", icon: "event_available", href: "#" },
   { label: "Reportes", icon: "monitoring", href: "#" },
   { label: "Configuración", icon: "settings", href: "#" },

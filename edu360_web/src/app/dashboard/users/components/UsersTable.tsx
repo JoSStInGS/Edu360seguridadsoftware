@@ -1,0 +1,207 @@
+import { useState } from "react";
+
+export interface UserRow {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    role: string;
+    status: string;
+    centerId: string;
+    centerName: string | null;
+    profesorId: string | null;
+    createdAt: string | null;
+}
+
+interface UsersTableProps {
+    users: UserRow[];
+    onEdit: (user: UserRow) => void;
+    onDeactivate: (user: UserRow) => void;
+}
+
+export default function UsersTable({ users, onEdit, onDeactivate }: UsersTableProps) {
+    const [confirmUid, setConfirmUid] = useState<string | null>(null);
+
+    const handleDeactivateClick = (user: UserRow) => {
+        if (confirmUid === user.uid) {
+            onDeactivate(user);
+            setConfirmUid(null);
+        } else {
+            setConfirmUid(user.uid);
+        }
+    };
+
+    return (
+        <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                    <thead className="bg-[rgba(15,23,42,0.04)] text-xs uppercase text-[var(--muted-light)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[var(--muted-dark)]">
+                        <tr>
+                            <th scope="col" className="px-6 py-3 font-medium">
+                                #
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
+                                Nombre
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium">
+                                Email
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium text-center">
+                                Rol
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium text-center">
+                                Fecha registro
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium text-center">
+                                Estado
+                            </th>
+                            <th scope="col" className="px-6 py-3 font-medium text-center">
+                                Acciones
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map((user, index) => (
+                            <tr
+                                key={user.uid}
+                                className="border-b border-[var(--border-light)] bg-transparent text-[var(--foreground-light)] last:border-0 hover:bg-[rgba(15,23,42,0.02)] dark:border-[var(--border-dark)] dark:text-[var(--foreground-dark)] dark:hover:bg-[rgba(255,255,255,0.02)]"
+                            >
+                                {/* # */}
+                                <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                                    {index + 1}
+                                </td>
+
+                                {/* Nombre */}
+                                <td className="whitespace-nowrap px-6 py-4 font-medium">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] font-semibold text-sm">
+                                            {getInitials(user.displayName || user.email || "?")}
+                                        </div>
+                                        <span>{user.displayName || "Sin nombre"}</span>
+                                    </div>
+                                </td>
+
+                                {/* Email */}
+                                <td className="px-6 py-4 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                                    {user.email || "—"}
+                                </td>
+
+                                {/* Rol */}
+                                <td className="px-6 py-4 text-center">
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClasses(user.role)}`}>
+                                        {getRoleLabel(user.role)}
+                                    </span>
+                                </td>
+
+                                {/* Fecha registro */}
+                                <td className="px-6 py-4 text-center text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                                    {user.createdAt ? formatDate(user.createdAt) : "—"}
+                                </td>
+
+                                {/* Estado */}
+                                <td className="px-6 py-4 text-center">
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(user.status)}`}>
+                                        {user.status === "active" ? "Activo" : "Inactivo"}
+                                    </span>
+                                </td>
+
+                                {/* Acciones */}
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <button
+                                            onClick={() => onEdit(user)}
+                                            className="rounded p-1.5 hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                                            title="Editar usuario"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">edit</span>
+                                        </button>
+                                        {user.status === "active" && (
+                                            <button
+                                                onClick={() => handleDeactivateClick(user)}
+                                                className={`rounded p-1.5 transition-colors ${
+                                                    confirmUid === user.uid
+                                                        ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                                                        : "hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)]"
+                                                }`}
+                                                title={confirmUid === user.uid ? "Confirmar desactivar" : "Desactivar usuario"}
+                                                onBlur={() => setConfirmUid(null)}
+                                            >
+                                                <span className="material-symbols-outlined text-lg">
+                                                    {confirmUid === user.uid ? "warning" : "person_off"}
+                                                </span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-[var(--border-light)] dark:border-[var(--border-dark)] bg-[rgba(15,23,42,0.02)] dark:bg-[rgba(255,255,255,0.02)] px-6 py-3">
+                <p className="text-xs text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                    Mostrando <span className="font-semibold">{users.length}</span> usuarios
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ============================================
+// HELPERS
+// ============================================
+
+function getInitials(name: string): string {
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+}
+
+function getRoleLabel(role: string): string {
+    switch (role) {
+        case "admin": return "Administrador";
+        case "professor": return "Profesor";
+        case "parent": return "Padre de familia";
+        default: return role;
+    }
+}
+
+function getRoleBadgeClasses(role: string): string {
+    switch (role) {
+        case "admin":
+            return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+        case "professor":
+            return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+        case "parent":
+            return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        default:
+            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+    }
+}
+
+function getStatusClasses(status: string): string {
+    switch (status) {
+        case "active":
+            return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        case "inactive":
+            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+        default:
+            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+    }
+}
+
+function formatDate(dateStr: string): string {
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString("es-CR", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
+    } catch {
+        return "—";
+    }
+}
