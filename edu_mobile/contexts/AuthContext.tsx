@@ -26,6 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
 });
 
+const ALLOWED_ROLES = ['professor', 'parent'];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -36,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser) {
         const role = await getUserRole(firebaseUser.uid);
 
-        if (role === 'professor') {
+        if (role && ALLOWED_ROLES.includes(role)) {
           setUser(firebaseUser);
           const data = await getUserData(firebaseUser.uid);
           setUserData({
@@ -49,7 +51,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             centerName: (data?.centerName as string) ?? null,
           });
         } else {
-          // No es profesor, no autenticar
           setUser(null);
           setUserData(null);
         }

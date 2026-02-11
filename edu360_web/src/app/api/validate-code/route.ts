@@ -67,6 +67,7 @@ export async function POST(request: Request) {
             message: "Código válido",
             profesorId: data.profesorId || null,
             periodId: data.periodId || null,
+            studentCedulas: data.studentCedulas || null,
         });
 
     } catch (error) {

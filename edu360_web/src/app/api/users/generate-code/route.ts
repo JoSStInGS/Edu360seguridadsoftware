@@ -43,10 +43,29 @@ export async function POST(request: Request) {
         }
 
         // 3. Parse body
-        const { role, profesorId, periodId } = await request.json();
+        const { role, profesorId, periodId, studentCedulas } = await request.json();
 
         if (!role || !["professor", "admin", "parent"].includes(role)) {
             return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+        }
+
+        // Validate studentCedulas for parent role
+        if (role === "parent") {
+            if (!studentCedulas || !Array.isArray(studentCedulas) || studentCedulas.length === 0) {
+                return NextResponse.json({ error: "Debe seleccionar al menos un estudiante" }, { status: 400 });
+            }
+            if (!periodId) {
+                return NextResponse.json({ error: "Se requiere un periodo activo" }, { status: 400 });
+            }
+
+            // Validate that each cedula exists in the students collection
+            const studentsRef = db.collection("centers").doc(centerId).collection("periods").doc(periodId).collection("students");
+            for (const cedula of studentCedulas) {
+                const studentDoc = await studentsRef.doc(cedula).get();
+                if (!studentDoc.exists) {
+                    return NextResponse.json({ error: `Estudiante con cédula ${cedula} no encontrado` }, { status: 400 });
+                }
+            }
         }
 
         // 4. Generate unique 6-digit code
@@ -83,6 +102,11 @@ export async function POST(request: Request) {
             if (periodId) {
                 codeData.periodId = periodId;
             }
+        }
+
+        if (role === "parent") {
+            codeData.studentCedulas = studentCedulas;
+            codeData.periodId = periodId;
         }
 
         await codesRef.doc(code).set(codeData);

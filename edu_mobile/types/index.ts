@@ -51,3 +51,17 @@ export interface Group {
   id: string;
   nombre: string;
 }
+
+export interface ParentChild {
+  id?: string;
+  studentCedula: string;
+  studentName: string;
+  grupoId: string | null;
+  grupoNombre: string | null;
+}
+
+export interface ChildAttendanceStatus {
+  scheduleEntry: ScheduleEntry;
+  status: 'pending' | 'present' | 'absent';
+  date: string;
+}

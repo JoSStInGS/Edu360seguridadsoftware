@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/theme';
 
 export default function IndexScreen() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, userData, loading } = useAuth();
 
   if (loading) {
     return (
@@ -14,7 +14,10 @@ export default function IndexScreen() {
     );
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && userData) {
+    if (userData.role === 'parent') {
+      return <Redirect href="/(tabs-parent)" />;
+    }
     return <Redirect href="/(tabs)" />;
   }
 

@@ -23,6 +23,12 @@ interface Profesor {
     nombre: string;
 }
 
+interface StudentOption {
+    cedula: string;
+    fullName: string;
+    grupoNombre: string | null;
+}
+
 export default function UsersPage() {
     const { user } = useAuth();
     const { periods, selectedPeriod, isLoading: periodsLoading } = usePeriodStore();
@@ -35,6 +41,8 @@ export default function UsersPage() {
 
     // Professors for code generation
     const [profesores, setProfesores] = useState<Profesor[]>([]);
+    // Students for parent code generation
+    const [students, setStudents] = useState<StudentOption[]>([]);
 
     // Modals
     const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -93,6 +101,37 @@ export default function UsersPage() {
         }
     }, [user, selectedPeriod]);
 
+    // Fetch students for the active period (for parent code generation)
+    const fetchStudents = useCallback(async () => {
+        if (!user || !selectedPeriod) return;
+
+        try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            const centerId = userDoc.data()?.centerId;
+            if (!centerId) return;
+
+            const periodRef = doc(db, "centers", centerId, "periods", selectedPeriod);
+            const studentsSnap = await getDocs(collection(periodRef, "students"));
+
+            const studentsList: StudentOption[] = studentsSnap.docs.map((d) => {
+                const data = d.data();
+                const fullName = data.fullName ||
+                    [data.name, data.lastName1, data.lastName2].filter(Boolean).join(" ") ||
+                    "Sin nombre";
+                return {
+                    cedula: d.id,
+                    fullName,
+                    grupoNombre: data.grupoNombre || null,
+                };
+            });
+
+            studentsList.sort((a, b) => a.fullName.localeCompare(b.fullName));
+            setStudents(studentsList);
+        } catch (err) {
+            console.error("Error loading students:", err);
+        }
+    }, [user, selectedPeriod]);
+
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
@@ -100,6 +139,10 @@ export default function UsersPage() {
     useEffect(() => {
         fetchProfesores();
     }, [fetchProfesores]);
+
+    useEffect(() => {
+        fetchStudents();
+    }, [fetchStudents]);
 
     // Linked professor IDs (professors already associated with a user account)
     const linkedProfesorIds = new Set(
@@ -123,7 +166,7 @@ export default function UsersPage() {
     });
 
     // Handlers
-    const handleGenerateCode = async (role: string, profesorId?: string) => {
+    const handleGenerateCode = async (role: string, profesorId?: string, studentCedulas?: string[]) => {
         const token = await getToken();
         if (!token) return null;
 
@@ -134,7 +177,7 @@ export default function UsersPage() {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ role, profesorId, periodId: selectedPeriod }),
+                body: JSON.stringify({ role, profesorId, periodId: selectedPeriod, studentCedulas }),
             });
 
             if (!res.ok) {
@@ -279,6 +322,7 @@ export default function UsersPage() {
                 onClose={() => setShowGenerateModal(false)}
                 profesores={profesores}
                 linkedProfesorIds={linkedProfesorIds}
+                students={students}
                 onGenerate={handleGenerateCode}
             />
 

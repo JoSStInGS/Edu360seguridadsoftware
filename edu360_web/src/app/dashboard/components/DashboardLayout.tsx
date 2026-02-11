@@ -10,15 +10,36 @@ import CustomSelect from "@/app/components/CustomSelect";
 import { useFetchPeriods } from "@/app/hooks/useFetchPeriods";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 
-const NAV_ITEMS = [
-  { label: "Inicio", icon: "home", href: "/dashboard" },
-  { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
-  { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
-  { label: "Grupos/Secciones", icon: "groups", href: "/dashboard/groups" },
-  { label: "Usuarios", icon: "manage_accounts", href: "/dashboard/users" },
-  { label: "Asistencia", icon: "event_available", href: "#" },
-  { label: "Reportes", icon: "monitoring", href: "#" },
-  { label: "Configuración", icon: "settings", href: "#" },
+const NAV_SECTIONS = [
+  {
+    label: "",
+    items: [
+      { label: "Inicio", icon: "home", href: "/dashboard" },
+    ],
+  },
+  {
+    label: "OPERACIONES",
+    items: [
+      { label: "Asistencia", icon: "event_available", href: "#" },
+      { label: "Reportes", icon: "monitoring", href: "#" },
+      { label: "Horarios", icon: "calendar_month", href: "/dashboard/schedules" },
+    ],
+  },
+  {
+    label: "GESTIÓN DE DATOS",
+    items: [
+      { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
+      { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
+      { label: "Grupos/Secciones", icon: "groups", href: "/dashboard/groups" },
+    ],
+  },
+  {
+    label: "SISTEMA",
+    items: [
+      { label: "Usuarios", icon: "manage_accounts", href: "/dashboard/users" },
+      { label: "Configuración", icon: "settings", href: "#" },
+    ],
+  },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -33,7 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   useFetchPeriods();
   const { periods, selectedPeriod, setSelectedPeriod, isLoading } = usePeriodStore();
 
-  const navItems = useMemo(() => NAV_ITEMS, []);
+  const navSections = useMemo(() => NAV_SECTIONS, []);
 
   const handleLogout = async () => {
     try {
@@ -70,58 +91,53 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </svg>
           <h1 className="text-2xl font-bold">EDU360</h1>
         </div>
-        <nav className="flex flex-col gap-2">
-          {navItems.map((item) => {
-            const isActive =
-              item.href !== "#" &&
-              (item.href === "/dashboard"
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`));
+        <nav className="flex flex-col gap-4">
+          {navSections.map((section, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              {section.label && (
+                <div className="px-4 py-2 text-xs font-bold text-[var(--muted-light)] dark:text-[var(--muted-dark)] uppercase tracking-wider opacity-70">
+                  {section.label}
+                </div>
+              )}
+              {section.items.map((item) => {
+                const isActive =
+                  item.href !== "#" &&
+                  (item.href === "/dashboard"
+                    ? pathname === item.href
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`));
 
-            const baseClasses =
-              "flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs";
-            const activeClasses = isActive
-              ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
-              : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]";
+                const baseClasses =
+                  "flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs";
+                const activeClasses = isActive
+                  ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
+                  : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]";
 
-            if (item.href === "#") {
-              return (
-                <span
-                  key={item.label}
-                  className={`${baseClasses} text-[var(--muted-light)] dark:text-[var(--muted-dark)]`}
-                >
-                  <span className="material-symbols-outlined">{item.icon}</span>
-                  <span>{item.label}</span>
-                </span>
-              );
-            }
+                if (item.href === "#") {
+                  return (
+                    <span
+                      key={item.label}
+                      className={`${baseClasses} text-[var(--muted-light)] dark:text-[var(--muted-dark)]`}
+                    >
+                      <span className="material-symbols-outlined">{item.icon}</span>
+                      <span className="font-semibold">{item.label}</span>
+                    </span>
+                  );
+                }
 
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`${baseClasses} ${activeClasses}`}
-                onClick={onNavigate}
-              >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                <span className="font-semibold">{item.label}</span>
-              </Link>
-            );
-          })}
-
-          <div className="my-2 border-t border-[rgba(21,53,147,0.1)] dark:border-[rgba(255,255,255,0.1)]" />
-
-          <Link
-            href="/dashboard/schedules"
-            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 transition-colors text-xs ${pathname === "/dashboard/schedules" || pathname.startsWith("/dashboard/schedules/") && pathname !== "/dashboard/schedules/import"
-              ? "bg-[rgba(21,53,147,0.1)] text-[var(--primary)] dark:bg-[rgba(21,53,147,0.2)]"
-              : "text-[var(--muted-light)] hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]"
-              }`}
-            onClick={onNavigate}
-          >
-            <span className="material-symbols-outlined">calendar_month</span>
-            <span className="font-semibold">Horarios</span>
-          </Link>
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`${baseClasses} ${activeClasses}`}
+                    onClick={onNavigate}
+                  >
+                    <span className="material-symbols-outlined">{item.icon}</span>
+                    <span className="font-semibold">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
       <div className="flex flex-col gap-2">

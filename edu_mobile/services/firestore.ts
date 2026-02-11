@@ -145,15 +145,17 @@ export async function getStudentsByGroup(
 
   const q = query(
     studentsRef,
-    where('grupoId', '==', grupoId),
-    orderBy('cedula')
+    where('grupoId', '==', grupoId)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({
+  const students = snapshot.docs.map((d) => ({
     id: d.id,
     ...d.data(),
   })) as Student[];
+
+  // Ordenar por cédula en cliente para evitar requerir índice compuesto
+  return students.sort((a, b) => a.cedula.localeCompare(b.cedula));
 }
 
 /**

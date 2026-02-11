@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,17 +13,30 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
 import { signInWithEmail } from '@/services/auth';
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const { isAuthenticated, userData } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect when AuthContext confirms authentication
+  useEffect(() => {
+    if (isAuthenticated && userData?.role) {
+      if (userData.role === 'parent') {
+        router.replace('/(tabs-parent)');
+      } else {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [isAuthenticated, userData]);
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -35,18 +48,18 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmail(email.trim(), password);
-      router.replace('/(tabs)');
+      // Don't navigate here - the useEffect above will handle it
+      // once AuthContext finishes updating
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Error al iniciar sesión';
-      if (message.includes('profesores')) {
+      if (message.includes('profesores') || message.includes('padres')) {
         setError(message);
       } else if (message.includes('invalid-credential') || message.includes('wrong-password') || message.includes('user-not-found')) {
         setError('Correo o contraseña incorrectos.');
       } else {
         setError(message);
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -61,11 +74,13 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
         <View style={[styles.card, { backgroundColor: colors.card }, Shadows.lg]}>
           {/* Header */}
@@ -244,10 +259,13 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Info text */}
-          <Text style={[styles.infoText, { color: colors.muted }]}>
-            Solo para profesores registrados
-          </Text>
+          {/* Register link */}
+          <TouchableOpacity onPress={() => router.push('/register')} style={styles.registerLink}>
+            <Text style={[styles.registerText, { color: colors.muted }]}>
+              No tienes cuenta?{' '}
+              <Text style={{ color: colors.primary, fontFamily: FontFamily.medium }}>Registrate aqui</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -360,10 +378,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontFamily: FontFamily.medium,
   },
-  infoText: {
-    textAlign: 'center',
-    fontSize: FontSize.xs,
-    fontFamily: FontFamily.regular,
+  registerLink: {
     marginTop: Spacing.xl,
+    alignItems: 'center',
+  },
+  registerText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
   },
 });

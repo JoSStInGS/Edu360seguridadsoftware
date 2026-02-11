@@ -1,14 +1,16 @@
 import {
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut,
   User,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 /**
- * Login con email y contraseña.
- * Valida que el usuario tenga rol de profesor.
+ * Login con email y contrasena.
+ * Valida que el usuario tenga rol de profesor o padre.
  */
 export async function signInWithEmail(
   email: string,
@@ -17,12 +19,46 @@ export async function signInWithEmail(
   const cred = await signInWithEmailAndPassword(auth, email, password);
   const role = await getUserRole(cred.user.uid);
 
-  if (role !== 'professor') {
+  if (role !== 'professor' && role !== 'parent') {
     await signOut(auth);
-    throw new Error('Solo los profesores pueden acceder a esta aplicación.');
+    throw new Error('Solo profesores y padres de familia pueden acceder a esta aplicación.');
   }
 
   return cred.user;
+}
+
+/**
+ * Registra un nuevo usuario con email y contrasena.
+ */
+export async function registerWithEmail(
+  email: string,
+  password: string,
+  displayName: string
+): Promise<User> {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(cred.user, { displayName });
+  return cred.user;
+}
+
+/**
+ * Crea o actualiza el perfil del usuario en Firestore.
+ */
+export async function createUserProfile(
+  uid: string,
+  data: {
+    email: string;
+    displayName: string;
+    role: string;
+    centerId: string;
+    centerName: string;
+  }
+): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  await setDoc(ref, {
+    ...data,
+    provider: 'email',
+    createdAt: new Date().toISOString(),
+  }, { merge: true });
 }
 
 /**
@@ -51,7 +87,7 @@ export async function getUserData(
 }
 
 /**
- * Cierra la sesión actual.
+ * Cierra la sesion actual.
  */
 export async function logout(): Promise<void> {
   await signOut(auth);
