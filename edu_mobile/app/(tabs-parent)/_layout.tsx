@@ -63,6 +63,15 @@ export default function ParentTabLayout() {
           }}
         />
         <Tabs.Screen
+          name="comunicados"
+          options={{
+            title: 'Comunicados',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="chatbubbles" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="profile"
           options={{
             title: 'Perfil',

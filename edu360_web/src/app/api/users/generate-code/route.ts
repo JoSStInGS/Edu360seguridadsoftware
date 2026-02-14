@@ -32,8 +32,12 @@ export async function POST(request: Request) {
         }
 
         const userData = userDoc.data();
-        console.log("user data: ", userData)
-        if (userData?.role !== "admin") {
+        const userRoles: string[] = (() => {
+            if (Array.isArray(userData?.roles) && userData.roles.length > 0) return userData.roles;
+            if (typeof userData?.role === "string" && userData.role) return [userData.role];
+            return [];
+        })();
+        if (!userRoles.includes("admin")) {
             return NextResponse.json({ error: "Acceso denegado. Se requiere rol de administrador." }, { status: 403 });
         }
 

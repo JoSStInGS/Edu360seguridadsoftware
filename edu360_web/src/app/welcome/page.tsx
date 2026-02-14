@@ -2,23 +2,29 @@
 
 import { useAuth } from '@/app/auth/hooks/useAuth'
 import { logout } from '@/app/auth/services/auth'
+import { canAccessWeb } from '@/app/lib/roles'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 export default function WelcomePage() {
-    const { user, loading } = useAuth();
+    const { user, roles, loading } = useAuth();
     const router = useRouter();
     const [loggingOut, setLoggingOut] = useState(false);
 
     useEffect(() => {
         if (!loading) {
             if (user) {
-                router.replace('/dashboard');
+                if (canAccessWeb(roles)) {
+                    router.replace('/dashboard');
+                } else {
+                    // Parent-only: redirect back to auth
+                    router.replace('/auth');
+                }
             } else {
                 router.replace('/auth');
             }
         }
-    }, [loading, router, user]);
+    }, [loading, router, user, roles]);
 
     const handleLogout = async () => {
         setLoggingOut(true);

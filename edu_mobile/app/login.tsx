@@ -29,8 +29,10 @@ export default function LoginScreen() {
 
   // Redirect when AuthContext confirms authentication
   useEffect(() => {
-    if (isAuthenticated && userData?.role) {
-      if (userData.role === 'parent') {
+    if (isAuthenticated && userData?.roles?.length) {
+      if (userData.roles.includes('professor')) {
+        router.replace('/(tabs)');
+      } else if (userData.roles.includes('parent')) {
         router.replace('/(tabs-parent)');
       } else {
         router.replace('/(tabs)');

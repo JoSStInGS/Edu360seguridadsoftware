@@ -4,12 +4,14 @@ interface TeachersTableProps {
     teachers: TeacherRow[];
     onView: (teacher: TeacherRow) => void;
     onEdit: (teacher: TeacherRow) => void;
+    onMarkAbsent: (teacher: TeacherRow) => void;
 }
 
 export default function TeachersTable({
     teachers,
     onView,
     onEdit,
+    onMarkAbsent,
 }: TeachersTableProps) {
     return (
         <div className="overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
@@ -109,6 +111,13 @@ export default function TeachersTable({
                                             title="Editar"
                                         >
                                             <span className="material-symbols-outlined text-lg">edit</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onMarkAbsent(teacher)}
+                                            className="rounded p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-[var(--muted-light)] hover:text-red-600 dark:text-[var(--muted-dark)] dark:hover:text-red-400"
+                                            title="Marcar ausente"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">person_off</span>
                                         </button>
                                     </div>
                                 </td>

@@ -6,11 +6,27 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { logout } from "@/app/auth/services/auth";
+import { canAccessWeb, type UserRole } from "@/app/lib/roles";
 import CustomSelect from "@/app/components/CustomSelect";
 import { useFetchPeriods } from "@/app/hooks/useFetchPeriods";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
+import { useActiveRoleStore } from "@/app/stores/useActiveRoleStore";
+import RoleSwitcher from "./RoleSwitcher";
 
-const NAV_SECTIONS = [
+interface NavItem {
+  label: string;
+  icon: string;
+  href: string;
+  requiredRoles?: UserRole[];
+}
+
+interface NavSection {
+  label: string;
+  requiredRoles?: UserRole[];
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
     label: "",
     items: [
@@ -20,13 +36,14 @@ const NAV_SECTIONS = [
   {
     label: "OPERACIONES",
     items: [
-      { label: "Asistencia", icon: "event_available", href: "#" },
-      { label: "Reportes", icon: "monitoring", href: "#" },
+      { label: "Asistencia", icon: "event_available", href: "/dashboard/attendance" },
+      { label: "Reportes", icon: "monitoring", href: "#", requiredRoles: ["admin"] },
       { label: "Horarios", icon: "calendar_month", href: "/dashboard/schedules" },
     ],
   },
   {
-    label: "GESTIÓN DE DATOS",
+    label: "GESTION DE DATOS",
+    requiredRoles: ["admin"],
     items: [
       { label: "Estudiantes", icon: "group", href: "/dashboard/students" },
       { label: "Profesores", icon: "school", href: "/dashboard/teachers" },
@@ -35,6 +52,7 @@ const NAV_SECTIONS = [
   },
   {
     label: "SISTEMA",
+    requiredRoles: ["admin"],
     items: [
       { label: "Usuarios", icon: "manage_accounts", href: "/dashboard/users" },
       { label: "Configuración", icon: "settings", href: "#" },
@@ -42,8 +60,24 @@ const NAV_SECTIONS = [
   },
 ];
 
+function filterNavByRoles(sections: NavSection[], userRoles: UserRole[]): NavSection[] {
+  return sections
+    .filter((section) => {
+      if (!section.requiredRoles) return true;
+      return section.requiredRoles.some((r) => userRoles.includes(r));
+    })
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.requiredRoles) return true;
+        return item.requiredRoles.some((r) => userRoles.includes(r));
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, roles, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -53,8 +87,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   // Fetch periods globally
   useFetchPeriods();
   const { periods, selectedPeriod, setSelectedPeriod, isLoading } = usePeriodStore();
+  const { activeRole } = useActiveRoleStore();
 
-  const navSections = useMemo(() => NAV_SECTIONS, []);
+  const navSections = useMemo(
+    () => filterNavByRoles(NAV_SECTIONS, activeRole ? [activeRole] : roles),
+    [activeRole, roles]
+  );
 
   const handleLogout = async () => {
     try {
@@ -70,7 +108,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     if (isMobileSidebarOpen) {
       setIsMobileSidebarOpen(false);
     }
-    // We intentionally only want to react to pathname changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
@@ -141,10 +178,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </nav>
       </div>
       <div className="flex flex-col gap-2">
-        <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-left text-[var(--muted-light)] transition-colors hover:bg-[rgba(21,53,147,0.1)] hover:text-[var(--primary)] dark:text-[var(--muted-dark)] dark:hover:bg-[rgba(21,53,147,0.2)] dark:hover:text-[var(--primary)]">
-          <span className="material-symbols-outlined">theater_comedy</span>
-          <span>Simular rol: Dirección</span>
-        </button>
         <button
           onClick={async () => {
             await handleLogout();
@@ -173,6 +206,28 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--background-light)] text-[var(--muted-light)] dark:bg-[var(--background-dark)] dark:text-[var(--muted-dark)]">
         Redirigiendo...
+      </div>
+    );
+  }
+
+  // Parent-only users cannot access web dashboard
+  if (!canAccessWeb(roles)) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--background-light)] dark:bg-[var(--background-dark)]">
+        <span className="material-symbols-outlined text-5xl text-[var(--muted-light)] dark:text-[var(--muted-dark)]">block</span>
+        <h2 className="text-xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
+          Acceso no disponible
+        </h2>
+        <p className="max-w-md text-center text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+          La plataforma web esta disponible solo para administradores y profesores.
+          Si eres encargado legal, utiliza la aplicacion movil.
+        </p>
+        <button
+          onClick={handleLogout}
+          className="mt-4 rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-105"
+        >
+          Cerrar sesion
+        </button>
       </div>
     );
   }
@@ -237,6 +292,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 selectedValueClassName="text-center"
                 optionClassName="text-center"
               />
+
+              <RoleSwitcher />
             </div>
 
             <div className="flex items-center gap-4 min-w-0">

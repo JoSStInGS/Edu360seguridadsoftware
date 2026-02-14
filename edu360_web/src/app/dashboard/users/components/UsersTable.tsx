@@ -4,7 +4,7 @@ export interface UserRow {
     uid: string;
     email: string | null;
     displayName: string | null;
-    role: string;
+    roles: string[];
     status: string;
     centerId: string;
     centerName: string | null;
@@ -87,9 +87,13 @@ export default function UsersTable({ users, onEdit, onDeactivate }: UsersTablePr
 
                                 {/* Rol */}
                                 <td className="px-6 py-4 text-center">
-                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClasses(user.role)}`}>
-                                        {getRoleLabel(user.role)}
-                                    </span>
+                                    <div className="flex flex-wrap justify-center gap-1">
+                                        {user.roles.map((role) => (
+                                            <span key={role} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClasses(role)}`}>
+                                                {getRoleLabel(role)}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </td>
 
                                 {/* Fecha registro */}
@@ -164,7 +168,7 @@ function getRoleLabel(role: string): string {
     switch (role) {
         case "admin": return "Administrador";
         case "professor": return "Profesor";
-        case "parent": return "Padre de familia";
+        case "parent": return "Encargado legal";
         default: return role;
     }
 }

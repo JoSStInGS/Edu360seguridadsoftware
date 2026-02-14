@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import TeachersTable from "./components/TeachersTable";
+import TeacherAbsenceModal from "./components/TeacherAbsenceModal";
 import CustomSelect from "@/app/components/CustomSelect";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { db } from "@/app/lib/firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import type { TeacherAbsence } from "@/types/teacherAbsence";
 
 // ============================================
 // TIPOS
@@ -19,6 +21,7 @@ export interface TeacherRow {
     subjects: string[];
     coursesCount: number;
     status: string;
+    activeAbsence?: TeacherAbsence | null;
 }
 
 interface ProfesorDoc {
@@ -54,6 +57,9 @@ export default function TeachersPage() {
     const { user } = useAuth();
     const { periods, isLoading: periodsLoading } = usePeriodStore();
     const [periodoLectivo, setPeriodoLectivo] = useState<string>("");
+    const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
+    const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null);
+    const [centerId, setCenterId] = useState<string>("");
 
     // Establecer periodo por defecto
     useEffect(() => {
@@ -67,98 +73,128 @@ export default function TeachersPage() {
         }
     }, [periods, periodsLoading, periodoLectivo]);
 
-    // Cargar profesores
-    useEffect(() => {
-        const fetchTeachers = async () => {
-            if (!user || !periodoLectivo) return;
-            setLoading(true);
+    // Fetch active absences for today
+    const fetchAbsences = useCallback(async (cId: string, periodId: string): Promise<Map<string, TeacherAbsence>> => {
+        const absenceMap = new Map<string, TeacherAbsence>();
+        if (!user) return absenceMap;
 
-            try {
-                // 1. Obtener centerId del usuario
-                const userDoc = await getDoc(doc(db, "users", user.uid));
-                const centerId = userDoc.data()?.centerId;
-                if (!centerId) {
-                    console.error("Usuario sin centro asociado");
-                    setLoading(false);
-                    return;
+        try {
+            const token = await user.getIdToken();
+            const today = new Date().toISOString().split("T")[0];
+            const res = await fetch(
+                `/api/teacher-absences?period=${periodId}&date=${today}&status=active`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                for (const absence of data.absences || []) {
+                    absenceMap.set(absence.profesorId, absence as TeacherAbsence);
                 }
+            }
+        } catch (err) {
+            console.error("Error fetching absences:", err);
+        }
 
-                // 2. Referencia al periodo
-                const periodRef = doc(db, "centers", centerId, "periods", periodoLectivo);
+        return absenceMap;
+    }, [user]);
 
-                // 3. Obtener colecciones en paralelo
-                const [profesoresSnap, asignaturasSnap, horariosSnap] = await Promise.all([
-                    getDocs(collection(periodRef, "profesores")),
-                    getDocs(collection(periodRef, "asignaturas")),
-                    getDocs(collection(periodRef, "horarios")),
-                ]);
+    // Cargar profesores
+    const fetchTeachers = useCallback(async () => {
+        if (!user || !periodoLectivo) return;
+        setLoading(true);
 
-                // 4. Mapear documentos
-                const profesores: ProfesorDoc[] = profesoresSnap.docs.map(d => ({
-                    id: d.id,
-                    nombre: d.data().nombre || d.data().name || "Sin nombre",
-                    nombreCorto: d.data().nombreCorto || d.data().short || "",
-                    status: d.data().status || "active",
-                }));
+        try {
+            // 1. Obtener centerId del usuario
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            const cId = userDoc.data()?.centerId;
+            if (!cId) {
+                console.error("Usuario sin centro asociado");
+                setLoading(false);
+                return;
+            }
+            setCenterId(cId);
 
-                const asignaturas: AsignaturaDoc[] = asignaturasSnap.docs.map(d => ({
-                    id: d.id,
-                    nombre: d.data().nombre || d.data().name || "",
-                }));
+            // 2. Referencia al periodo
+            const periodRef = doc(db, "centers", cId, "periods", periodoLectivo);
 
-                const horarios: HorarioDoc[] = horariosSnap.docs.map(d => ({
-                    profesorId: d.data().profesorId || "",
-                    profesorNombre: d.data().profesorNombre || "",
-                    asignaturaId: d.data().asignaturaId || "",
-                    asignaturaNombre: d.data().asignaturaNombre || "",
-                    grupoId: d.data().grupoId || "",
-                    grupoNombre: d.data().grupoNombre || "",
-                }));
+            // 3. Obtener colecciones + ausencias en paralelo
+            const [profesoresSnap, asignaturasSnap, horariosSnap, absenceMap] = await Promise.all([
+                getDocs(collection(periodRef, "profesores")),
+                getDocs(collection(periodRef, "asignaturas")),
+                getDocs(collection(periodRef, "horarios")),
+                fetchAbsences(cId, periodoLectivo),
+            ]);
 
-                // 5. Crear índice de asignaturas
-                const asignaturaMap = new Map(asignaturas.map(a => [a.id, a.nombre]));
+            // 4. Mapear documentos
+            const profesores: ProfesorDoc[] = profesoresSnap.docs.map(d => ({
+                id: d.id,
+                nombre: d.data().nombre || d.data().name || "Sin nombre",
+                nombreCorto: d.data().nombreCorto || d.data().short || "",
+                status: d.data().status || "active",
+            }));
 
-                // 6. Construir filas de la tabla
-                const rows: TeacherRow[] = profesores.map(profesor => {
-                    // Filtrar horarios de este profesor
-                    const misHorarios = horarios.filter(h => h.profesorId === profesor.id);
+            const asignaturas: AsignaturaDoc[] = asignaturasSnap.docs.map(d => ({
+                id: d.id,
+                nombre: d.data().nombre || d.data().name || "",
+            }));
 
-                    // Obtener asignaturas únicas (usando el nombre desnormalizado si está disponible)
-                    const asignaturasUnicas = new Set<string>();
-                    misHorarios.forEach(h => {
-                        // Preferir nombre desnormalizado, si no buscar en el mapa
-                        const nombreAsignatura = h.asignaturaNombre || asignaturaMap.get(h.asignaturaId);
-                        if (nombreAsignatura) {
-                            asignaturasUnicas.add(nombreAsignatura);
-                        }
-                    });
+            const horarios: HorarioDoc[] = horariosSnap.docs.map(d => ({
+                profesorId: d.data().profesorId || "",
+                profesorNombre: d.data().profesorNombre || "",
+                asignaturaId: d.data().asignaturaId || "",
+                asignaturaNombre: d.data().asignaturaNombre || "",
+                grupoId: d.data().grupoId || "",
+                grupoNombre: d.data().grupoNombre || "",
+            }));
 
-                    // Obtener grupos únicos (cursos asignados)
-                    const gruposUnicos = new Set(misHorarios.map(h => h.grupoId).filter(Boolean));
+            // 5. Crear índice de asignaturas
+            const asignaturaMap = new Map(asignaturas.map(a => [a.id, a.nombre]));
 
-                    return {
-                        id: profesor.id,
-                        fullName: profesor.nombre,
-                        subjects: Array.from(asignaturasUnicas),
-                        coursesCount: gruposUnicos.size,
-                        status: profesor.status === "active" ? "Activo" : "Inactivo",
-                    };
+            // 6. Construir filas de la tabla
+            const rows: TeacherRow[] = profesores.map(profesor => {
+                // Filtrar horarios de este profesor
+                const misHorarios = horarios.filter(h => h.profesorId === profesor.id);
+
+                // Obtener asignaturas únicas (usando el nombre desnormalizado si está disponible)
+                const asignaturasUnicas = new Set<string>();
+                misHorarios.forEach(h => {
+                    // Preferir nombre desnormalizado, si no buscar en el mapa
+                    const nombreAsignatura = h.asignaturaNombre || asignaturaMap.get(h.asignaturaId);
+                    if (nombreAsignatura) {
+                        asignaturasUnicas.add(nombreAsignatura);
+                    }
                 });
 
-                // 7. Ordenar por nombre
-                rows.sort((a, b) => a.fullName.localeCompare(b.fullName));
+                // Obtener grupos únicos (cursos asignados)
+                const gruposUnicos = new Set(misHorarios.map(h => h.grupoId).filter(Boolean));
 
-                setTeachers(rows);
+                const absence = absenceMap.get(profesor.id);
 
-            } catch (err) {
-                console.error("Error cargando profesores:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+                return {
+                    id: profesor.id,
+                    fullName: profesor.nombre,
+                    subjects: Array.from(asignaturasUnicas),
+                    coursesCount: gruposUnicos.size,
+                    status: absence ? "Ausente" : (profesor.status === "active" ? "Activo" : "Inactivo"),
+                    activeAbsence: absence || null,
+                };
+            });
 
+            // 7. Ordenar por nombre
+            rows.sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+            setTeachers(rows);
+
+        } catch (err) {
+            console.error("Error cargando profesores:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [user, periodoLectivo, fetchAbsences]);
+
+    useEffect(() => {
         fetchTeachers();
-    }, [user, periodoLectivo]);
+    }, [fetchTeachers]);
 
     // Filtrar profesores
     const filteredTeachers = teachers.filter((teacher) => {
@@ -176,6 +212,15 @@ export default function TeachersPage() {
     const handleEdit = (teacher: TeacherRow) => {
         console.log("Editar profesor:", teacher);
         // TODO: Implementar edición
+    };
+
+    const handleMarkAbsent = (teacher: TeacherRow) => {
+        setSelectedTeacher(teacher);
+        setAbsenceModalOpen(true);
+    };
+
+    const handleAbsenceSaved = () => {
+        fetchTeachers();
     };
 
     return (
@@ -282,8 +327,22 @@ export default function TeachersPage() {
                     teachers={filteredTeachers}
                     onView={handleView}
                     onEdit={handleEdit}
+                    onMarkAbsent={handleMarkAbsent}
                 />
             )}
+
+            {/* Absence Modal */}
+            <TeacherAbsenceModal
+                isOpen={absenceModalOpen}
+                teacher={selectedTeacher}
+                teachers={teachers}
+                periodId={periodoLectivo}
+                onClose={() => {
+                    setAbsenceModalOpen(false);
+                    setSelectedTeacher(null);
+                }}
+                onSaved={handleAbsenceSaved}
+            />
         </div>
     );
 }

@@ -9,6 +9,20 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 /**
+ * Normalizes role data to always return an array.
+ */
+export function normalizeRoles(data: Record<string, unknown> | null | undefined): string[] {
+  if (!data) return [];
+  if (Array.isArray(data.roles) && data.roles.length > 0) {
+    return data.roles.filter((r: unknown) => typeof r === 'string');
+  }
+  if (typeof data.role === 'string' && data.role) {
+    return [data.role];
+  }
+  return [];
+}
+
+/**
  * Login con email y contrasena.
  * Valida que el usuario tenga rol de profesor o padre.
  */
@@ -17,11 +31,11 @@ export async function signInWithEmail(
   password: string
 ): Promise<User> {
   const cred = await signInWithEmailAndPassword(auth, email, password);
-  const role = await getUserRole(cred.user.uid);
+  const roles = await getUserRoles(cred.user.uid);
 
-  if (role !== 'professor' && role !== 'parent') {
+  if (!roles.includes('professor') && !roles.includes('parent')) {
     await signOut(auth);
-    throw new Error('Solo profesores y padres de familia pueden acceder a esta aplicación.');
+    throw new Error('Solo profesores y encargados legales pueden acceder a esta aplicación.');
   }
 
   return cred.user;
@@ -48,7 +62,7 @@ export async function createUserProfile(
   data: {
     email: string;
     displayName: string;
-    role: string;
+    roles: string[];
     centerId: string;
     centerName: string;
   }
@@ -72,6 +86,18 @@ export async function getUserRole(
   if (!snapshot.exists()) return null;
   const data = snapshot.data() as { role?: string };
   return data.role ?? null;
+}
+
+/**
+ * Obtiene los roles del usuario como array.
+ */
+export async function getUserRoles(
+  userId: string
+): Promise<string[]> {
+  const ref = doc(db, 'users', userId);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists()) return [];
+  return normalizeRoles(snapshot.data());
 }
 
 /**

@@ -112,7 +112,7 @@ export default function CompleteProfilePage() {
         if (user) {
           try {
             const profileData: Record<string, unknown> = {
-              role: role,
+              roles: [role],
               centerId: selectedCenterId, // Save ID
               centerName: selectedCenterName, // Save Name for display convenience
               updatedAt: new Date().toISOString(),

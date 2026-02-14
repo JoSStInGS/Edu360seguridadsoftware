@@ -58,7 +58,7 @@ export default function AddChildScreen() {
 
       // Check role
       if (codeData.role !== 'parent') {
-        setError('Este codigo no es para padres de familia.');
+        setError('Este codigo no es para encargados legales.');
         setLoading(false);
         return;
       }

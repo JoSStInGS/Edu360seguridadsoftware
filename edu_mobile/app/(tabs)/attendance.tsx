@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTeacher } from '@/contexts/TeacherContext';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -43,7 +44,8 @@ export default function AttendanceScreen() {
     currentClass
   );
   const [students, setStudents] = useState<Student[]>([]);
-  const [attendanceMap, setAttendanceMap] = useState<Record<string, boolean>>(
+  type AttendanceStatus = 'en_proceso' | 'presente' | 'ausente';
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>(
     {}
   );
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -76,17 +78,17 @@ export default function AttendanceScreen() {
 
       if (existing) {
         // Restaurar estado previo
-        const map: Record<string, boolean> = {};
+        const map: Record<string, AttendanceStatus> = {};
         for (const record of existing.records) {
-          map[record.studentId] = record.present;
+          map[record.studentId] = record.status;
         }
         setAttendanceMap(map);
         setSaved(true);
       } else {
-        // Todos presentes por defecto
-        const map: Record<string, boolean> = {};
+        // Todos "en_proceso" por defecto
+        const map: Record<string, AttendanceStatus> = {};
         for (const student of studentList) {
-          map[student.id] = true;
+          map[student.id] = 'en_proceso';
         }
         setAttendanceMap(map);
       }
@@ -111,26 +113,30 @@ export default function AttendanceScreen() {
 
   const toggleAttendance = (studentId: string) => {
     setSaved(false);
-    setAttendanceMap((prev) => ({
-      ...prev,
-      [studentId]: !prev[studentId],
-    }));
+    setAttendanceMap((prev) => {
+      const current = prev[studentId] || 'en_proceso';
+      let next: AttendanceStatus;
+      if (current === 'en_proceso') next = 'presente';
+      else if (current === 'presente') next = 'ausente';
+      else next = 'presente';
+      return { ...prev, [studentId]: next };
+    });
   };
 
   const markAllPresent = () => {
     setSaved(false);
-    const map: Record<string, boolean> = {};
+    const map: Record<string, AttendanceStatus> = {};
     for (const student of students) {
-      map[student.id] = true;
+      map[student.id] = 'presente';
     }
     setAttendanceMap(map);
   };
 
   const markAllAbsent = () => {
     setSaved(false);
-    const map: Record<string, boolean> = {};
+    const map: Record<string, AttendanceStatus> = {};
     for (const student of students) {
-      map[student.id] = false;
+      map[student.id] = 'ausente';
     }
     setAttendanceMap(map);
   };
@@ -143,7 +149,7 @@ export default function AttendanceScreen() {
       const records: StudentAttendance[] = students.map((student) => ({
         studentId: student.id,
         studentName: student.fullName ?? student.cedula,
-        present: attendanceMap[student.id] ?? true,
+        status: attendanceMap[student.id] ?? 'en_proceso',
       }));
 
       await saveAttendance(centerId, periodoId, {
@@ -167,8 +173,9 @@ export default function AttendanceScreen() {
     }
   };
 
-  const presentCount = Object.values(attendanceMap).filter(Boolean).length;
-  const absentCount = students.length - presentCount;
+  const enProcesoCount = Object.values(attendanceMap).filter((v) => v === 'en_proceso').length;
+  const presentCount = Object.values(attendanceMap).filter((v) => v === 'presente').length;
+  const absentCount = Object.values(attendanceMap).filter((v) => v === 'ausente').length;
 
   return (
     <SafeAreaView
@@ -268,16 +275,22 @@ export default function AttendanceScreen() {
       {/* Stats bar */}
       {students.length > 0 && (
         <View style={styles.statsBar}>
+          <View style={[styles.statChip, { backgroundColor: colors.warningLight }]}>
+            <Ionicons name="remove-circle" size={14} color={colors.warning} />
+            <Text style={[styles.statText, { color: colors.warning }]}>
+              {enProcesoCount}
+            </Text>
+          </View>
           <View style={[styles.statChip, { backgroundColor: colors.successLight }]}>
             <Ionicons name="checkmark-circle" size={14} color={colors.success} />
             <Text style={[styles.statText, { color: colors.success }]}>
-              {presentCount} presentes
+              {presentCount}
             </Text>
           </View>
           <View style={[styles.statChip, { backgroundColor: colors.errorLight }]}>
             <Ionicons name="close-circle" size={14} color={colors.error} />
             <Text style={[styles.statText, { color: colors.error }]}>
-              {absentCount} ausentes
+              {absentCount}
             </Text>
           </View>
           <View style={styles.statsActions}>
@@ -323,7 +336,11 @@ export default function AttendanceScreen() {
         <>
           <ScrollView contentContainerStyle={styles.studentList}>
             {students.map((student, idx) => {
-              const isPresent = attendanceMap[student.id] ?? true;
+              const status = attendanceMap[student.id] ?? 'en_proceso';
+              const avatarBg = status === 'presente' ? colors.successLight : status === 'ausente' ? colors.errorLight : colors.warningLight;
+              const avatarColor = status === 'presente' ? colors.success : status === 'ausente' ? colors.error : colors.warning;
+              const toggleBg = status === 'presente' ? colors.success : status === 'ausente' ? colors.error : colors.warning;
+              const toggleIcon = status === 'presente' ? 'checkmark' : status === 'ausente' ? 'close' : 'remove';
               return (
                 <TouchableOpacity
                   key={student.id}
@@ -339,19 +356,13 @@ export default function AttendanceScreen() {
                     <View
                       style={[
                         styles.studentAvatar,
-                        {
-                          backgroundColor: isPresent
-                            ? colors.successLight
-                            : colors.errorLight,
-                        },
+                        { backgroundColor: avatarBg },
                       ]}
                     >
                       <Text
                         style={[
                           styles.studentAvatarText,
-                          {
-                            color: isPresent ? colors.success : colors.error,
-                          },
+                          { color: avatarColor },
                         ]}
                       >
                         {idx + 1}
@@ -377,21 +388,39 @@ export default function AttendanceScreen() {
                     </View>
                   </View>
 
-                  <View
-                    style={[
-                      styles.attendanceToggle,
-                      {
-                        backgroundColor: isPresent
-                          ? colors.success
-                          : colors.error,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={isPresent ? 'checkmark' : 'close'}
-                      size={18}
-                      color="#fff"
-                    />
+                  <View style={styles.studentActions}>
+                    <TouchableOpacity
+                      style={[styles.chatButton, { backgroundColor: colors.primaryLight }]}
+                      onPress={() => {
+                        if (selectedEntry) {
+                          router.push({
+                            pathname: '/compose-comunicado',
+                            params: {
+                              studentCedula: student.cedula,
+                              studentName: student.fullName ?? student.cedula,
+                              grupoId: selectedEntry.grupoId,
+                              grupoNombre: selectedEntry.grupoNombre,
+                            },
+                          });
+                        }
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+
+                    <View
+                      style={[
+                        styles.attendanceToggle,
+                        { backgroundColor: toggleBg },
+                      ]}
+                    >
+                      <Ionicons
+                        name={toggleIcon as any}
+                        size={18}
+                        color="#fff"
+                      />
+                    </View>
                   </View>
                 </TouchableOpacity>
               );
@@ -634,6 +663,18 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
     marginTop: 1,
+  },
+  studentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  chatButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attendanceToggle: {
     width: 32,

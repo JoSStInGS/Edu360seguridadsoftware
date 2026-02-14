@@ -5,6 +5,17 @@ import { ensureAdminApp } from "@/app/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 
+function normalizeRolesServer(data: Record<string, unknown> | undefined): string[] {
+    if (!data) return [];
+    if (Array.isArray(data.roles) && data.roles.length > 0) {
+        return data.roles.filter((r: unknown) => typeof r === "string");
+    }
+    if (typeof data.role === "string" && data.role) {
+        return [data.role];
+    }
+    return [];
+}
+
 async function verifyAdmin(request: Request) {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -24,7 +35,8 @@ async function verifyAdmin(request: Request) {
     }
 
     const userData = userDoc.data();
-    if (userData?.role !== "admin") {
+    const roles = normalizeRolesServer(userData);
+    if (!roles.includes("admin")) {
         return { error: "Acceso denegado", status: 403 };
     }
 
@@ -72,11 +84,12 @@ export async function GET(request: Request) {
                     }
                 }
 
+                const roles = normalizeRolesServer(data);
                 return {
                     uid: doc.id,
                     email,
                     displayName,
-                    role: data.role || "unknown",
+                    roles,
                     status: data.status || "active",
                     centerId: data.centerId,
                     centerName: data.centerName || null,
@@ -89,9 +102,9 @@ export async function GET(request: Request) {
         // Calculate metrics
         const metrics = {
             total: users.length,
-            admins: users.filter((u) => u.role === "admin").length,
-            professors: users.filter((u) => u.role === "professor").length,
-            parents: users.filter((u) => u.role === "parent").length,
+            admins: users.filter((u) => u.roles.includes("admin")).length,
+            professors: users.filter((u) => u.roles.includes("professor")).length,
+            parents: users.filter((u) => u.roles.includes("parent")).length,
         };
 
         return NextResponse.json({ users, metrics });
@@ -109,7 +122,7 @@ export async function PATCH(request: Request) {
         }
 
         const { centerId, db } = result;
-        const { targetUid, role, status } = await request.json();
+        const { targetUid, roles, status } = await request.json();
 
         if (!targetUid) {
             return NextResponse.json({ error: "targetUid es requerido" }, { status: 400 });
@@ -130,8 +143,9 @@ export async function PATCH(request: Request) {
             updatedAt: new Date().toISOString(),
         };
 
-        if (role && ["admin", "professor", "parent"].includes(role)) {
-            updateData.role = role;
+        const validRoles = ["admin", "professor", "parent"];
+        if (Array.isArray(roles) && roles.length > 0 && roles.every((r: string) => validRoles.includes(r))) {
+            updateData.roles = roles;
         }
 
         if (status && ["active", "inactive"].includes(status)) {

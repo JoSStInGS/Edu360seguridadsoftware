@@ -208,5 +208,16 @@ export async function getAttendance(
   const snapshot = await getDoc(ref);
   if (!snapshot.exists()) return null;
 
-  return { id: snapshot.id, ...snapshot.data() } as AttendanceRecord;
+  const record = { id: snapshot.id, ...snapshot.data() } as AttendanceRecord;
+
+  // Backward compat: normalize old `present: boolean` records to `status`
+  if (record.records) {
+    for (const r of record.records) {
+      if (!('status' in r) && 'present' in (r as any)) {
+        r.status = (r as any).present ? 'presente' : 'ausente';
+      }
+    }
+  }
+
+  return record;
 }

@@ -5,13 +5,15 @@ import {
   findTeacherIdByEmail,
   getTeacherSchedule,
 } from '@/services/firestore';
-import type { ScheduleEntry } from '@/types';
+import { getActiveAbsenceForProfessor } from '@/services/absenceFirestore';
+import type { ScheduleEntry, TeacherAbsence } from '@/types';
 
 interface TeacherContextType {
   centerId: string | null;
   periodoId: string | null;
   profesorId: string | null;
   schedule: ScheduleEntry[];
+  activeAbsence: TeacherAbsence | null;
   loading: boolean;
   error: string | null;
   refreshSchedule: () => Promise<void>;
@@ -22,6 +24,7 @@ const TeacherContext = createContext<TeacherContextType>({
   periodoId: null,
   profesorId: null,
   schedule: [],
+  activeAbsence: null,
   loading: true,
   error: null,
   refreshSchedule: async () => {},
@@ -33,6 +36,7 @@ export function TeacherProvider({ children }: { children: React.ReactNode }) {
   const [periodoId, setPeriodoId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [activeAbsence, setActiveAbsence] = useState<TeacherAbsence | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +71,16 @@ export function TeacherProvider({ children }: { children: React.ReactNode }) {
         if (tId) {
           const sched = await getTeacherSchedule(cId, pId, tId);
           setSchedule(sched);
+
+          // Check if teacher has an active absence for today
+          const today = new Date().toISOString().split('T')[0];
+          try {
+            const absence = await getActiveAbsenceForProfessor(cId, pId, tId, today);
+            setActiveAbsence(absence);
+          } catch (absErr) {
+            console.error('Error fetching teacher absence:', absErr);
+            setActiveAbsence(null);
+          }
         } else {
           setError(
             'No se encontró tu perfil de profesor en el horario. Contacta al administrador.'
@@ -92,6 +106,7 @@ export function TeacherProvider({ children }: { children: React.ReactNode }) {
         periodoId,
         profesorId,
         schedule,
+        activeAbsence,
         loading,
         error,
         refreshSchedule: loadData,

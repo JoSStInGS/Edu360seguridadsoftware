@@ -114,32 +114,36 @@ export default function ParentAttendanceScreen() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'present': return 'checkmark-circle';
-      case 'absent': return 'close-circle';
+      case 'presente': return 'checkmark-circle';
+      case 'ausente': return 'close-circle';
+      case 'en_proceso': return 'remove-circle-outline';
       default: return 'time-outline';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'present': return colors.success;
-      case 'absent': return colors.error;
+      case 'presente': return colors.success;
+      case 'ausente': return colors.error;
+      case 'en_proceso': return colors.warning;
       default: return colors.muted;
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'present': return 'Presente';
-      case 'absent': return 'Ausente';
+      case 'presente': return 'Presente';
+      case 'ausente': return 'Ausente';
+      case 'en_proceso': return 'En proceso';
       default: return 'Pendiente';
     }
   };
 
   const getStatusBg = (status: string) => {
     switch (status) {
-      case 'present': return colors.successLight;
-      case 'absent': return colors.errorLight;
+      case 'presente': return colors.successLight;
+      case 'ausente': return colors.errorLight;
+      case 'en_proceso': return colors.warningLight;
       default: return 'rgba(107,114,128,0.1)';
     }
   };
@@ -264,7 +268,11 @@ export default function ParentAttendanceScreen() {
 
               {/* Divider */}
               <View style={styles.dividerColumn}>
-                <View style={[styles.dividerDot, { backgroundColor: getStatusColor(item.status) }]} />
+                <View style={[styles.dividerDot, {
+                  backgroundColor: item.teacherAbsence && !item.teacherAbsence.substituteProfesorId
+                    ? colors.error
+                    : getStatusColor(item.status)
+                }]} />
                 {index < attendanceStatuses.length - 1 && (
                   <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                 )}
@@ -284,17 +292,47 @@ export default function ParentAttendanceScreen() {
                   </Text>
                 )}
 
-                {/* Status badge */}
-                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(item.status) }]}>
-                  <Ionicons
-                    name={getStatusIcon(item.status) as any}
-                    size={16}
-                    color={getStatusColor(item.status)}
-                  />
-                  <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                    {getStatusLabel(item.status)}
-                  </Text>
-                </View>
+                {/* Teacher absence badge */}
+                {item.teacherAbsence && !item.teacherAbsence.substituteProfesorId ? (
+                  <View style={[styles.statusBadge, { backgroundColor: colors.errorLight }]}>
+                    <Ionicons name="person-remove" size={16} color={colors.error} />
+                    <Text style={[styles.statusText, { color: colors.error }]}>
+                      Profesor ausente - Sin lecciones
+                    </Text>
+                  </View>
+                ) : item.teacherAbsence && item.teacherAbsence.substituteProfesorId ? (
+                  <>
+                    <View style={[styles.statusBadge, { backgroundColor: colors.warningLight }]}>
+                      <Ionicons name="swap-horizontal" size={16} color={colors.warning} />
+                      <Text style={[styles.statusText, { color: colors.warning }]}>
+                        Sustituto: {item.teacherAbsence.substituteProfesorNombre}
+                      </Text>
+                    </View>
+                    {/* Normal attendance badge when substitute */}
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusBg(item.status) }]}>
+                      <Ionicons
+                        name={getStatusIcon(item.status) as any}
+                        size={16}
+                        color={getStatusColor(item.status)}
+                      />
+                      <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                        {getStatusLabel(item.status)}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  /* Normal status badge */
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBg(item.status) }]}>
+                    <Ionicons
+                      name={getStatusIcon(item.status) as any}
+                      size={16}
+                      color={getStatusColor(item.status)}
+                    />
+                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                      {getStatusLabel(item.status)}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           ))}

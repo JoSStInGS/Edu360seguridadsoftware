@@ -79,12 +79,13 @@ export default function ParentHomeScreen() {
 
   const getAttendanceSummary = (cedula: string) => {
     const statuses = childrenAttendance.get(cedula) || [];
-    if (statuses.length === 0) return { total: 0, present: 0, absent: 0, pending: 0 };
+    if (statuses.length === 0) return { total: 0, present: 0, absent: 0, pending: 0, enProceso: 0 };
     return {
       total: statuses.length,
-      present: statuses.filter((s) => s.status === 'present').length,
-      absent: statuses.filter((s) => s.status === 'absent').length,
+      present: statuses.filter((s) => s.status === 'presente').length,
+      absent: statuses.filter((s) => s.status === 'ausente').length,
       pending: statuses.filter((s) => s.status === 'pending').length,
+      enProceso: statuses.filter((s) => s.status === 'en_proceso').length,
     };
   };
 
@@ -184,7 +185,55 @@ function ChildCard({
       </View>
 
       {/* Current class */}
-      {currentClass && (
+      {currentClass && currentClass.teacherAbsence && !currentClass.teacherAbsence.substituteProfesorId ? (
+        // Teacher absent - no substitute
+        <View style={[styles.currentClassBanner, { backgroundColor: colors.errorLight }]}>
+          <View style={styles.liveIndicator}>
+            <Ionicons name="person-remove" size={14} color={colors.error} />
+            <Text style={[styles.liveText, { color: colors.error }]}>Profesor ausente</Text>
+          </View>
+          <Text style={[styles.currentClassName, { color: colors.error }]}>
+            {currentClass.scheduleEntry.asignaturaNombre} - Sin lecciones
+          </Text>
+          <Text style={[styles.currentClassTime, { color: colors.textSecondary }]}>
+            {currentClass.scheduleEntry.horaInicio} - {currentClass.scheduleEntry.horaFin}
+          </Text>
+        </View>
+      ) : currentClass && currentClass.teacherAbsence && currentClass.teacherAbsence.substituteProfesorId ? (
+        // Teacher absent - with substitute
+        <View style={[styles.currentClassBanner, { backgroundColor: colors.warningLight }]}>
+          <View style={styles.liveIndicator}>
+            <Ionicons name="swap-horizontal" size={14} color={colors.warning} />
+            <Text style={[styles.liveText, { color: colors.warning }]}>Sustituto</Text>
+          </View>
+          <Text style={[styles.currentClassName, { color: colors.warning }]}>
+            {currentClass.scheduleEntry.asignaturaNombre}
+          </Text>
+          <Text style={[styles.currentClassTime, { color: colors.textSecondary }]}>
+            Sustituto: {currentClass.teacherAbsence.substituteProfesorNombre}
+          </Text>
+          {currentClass.status !== 'pending' && (
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: currentClass.status === 'presente' ? colors.successLight : currentClass.status === 'en_proceso' ? colors.warningLight : colors.errorLight },
+            ]}>
+              <Ionicons
+                name={currentClass.status === 'presente' ? 'checkmark-circle' : currentClass.status === 'en_proceso' ? 'remove-circle-outline' : 'close-circle'}
+                size={14}
+                color={currentClass.status === 'presente' ? colors.success : currentClass.status === 'en_proceso' ? colors.warning : colors.error}
+              />
+              <Text style={{
+                fontSize: FontSize.xs,
+                fontFamily: FontFamily.medium,
+                color: currentClass.status === 'presente' ? colors.success : currentClass.status === 'en_proceso' ? colors.warning : colors.error,
+              }}>
+                {currentClass.status === 'presente' ? 'Presente' : currentClass.status === 'en_proceso' ? 'En proceso' : 'Ausente'}
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : currentClass ? (
+        // Normal class - no absence
         <View style={[styles.currentClassBanner, { backgroundColor: colors.primaryLight }]}>
           <View style={styles.liveIndicator}>
             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
@@ -199,24 +248,24 @@ function ChildCard({
           {currentClass.status !== 'pending' && (
             <View style={[
               styles.statusBadge,
-              { backgroundColor: currentClass.status === 'present' ? colors.successLight : colors.errorLight },
+              { backgroundColor: currentClass.status === 'presente' ? colors.successLight : currentClass.status === 'en_proceso' ? colors.warningLight : colors.errorLight },
             ]}>
               <Ionicons
-                name={currentClass.status === 'present' ? 'checkmark-circle' : 'close-circle'}
+                name={currentClass.status === 'presente' ? 'checkmark-circle' : currentClass.status === 'en_proceso' ? 'remove-circle-outline' : 'close-circle'}
                 size={14}
-                color={currentClass.status === 'present' ? colors.success : colors.error}
+                color={currentClass.status === 'presente' ? colors.success : currentClass.status === 'en_proceso' ? colors.warning : colors.error}
               />
               <Text style={{
                 fontSize: FontSize.xs,
                 fontFamily: FontFamily.medium,
-                color: currentClass.status === 'present' ? colors.success : colors.error,
+                color: currentClass.status === 'presente' ? colors.success : currentClass.status === 'en_proceso' ? colors.warning : colors.error,
               }}>
-                {currentClass.status === 'present' ? 'Presente' : 'Ausente'}
+                {currentClass.status === 'presente' ? 'Presente' : currentClass.status === 'en_proceso' ? 'En proceso' : 'Ausente'}
               </Text>
             </View>
           )}
         </View>
-      )}
+      ) : null}
 
       {/* Attendance summary */}
       {loadingAttendance ? (
@@ -232,6 +281,11 @@ function ChildCard({
             <Ionicons name="close-circle" size={16} color={colors.error} />
             <Text style={[styles.summaryNumber, { color: colors.error }]}>{summary.absent}</Text>
             <Text style={[styles.summaryLabel, { color: colors.error }]}>Ausente</Text>
+          </View>
+          <View style={[styles.summaryItem, { backgroundColor: colors.warningLight }]}>
+            <Ionicons name="remove-circle-outline" size={16} color={colors.warning} />
+            <Text style={[styles.summaryNumber, { color: colors.warning }]}>{summary.enProceso}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.warning }]}>En proceso</Text>
           </View>
           <View style={[styles.summaryItem, { backgroundColor: 'rgba(107,114,128,0.1)' }]}>
             <Ionicons name="time" size={16} color={colors.muted} />

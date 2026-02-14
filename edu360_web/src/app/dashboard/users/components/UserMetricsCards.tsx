@@ -13,7 +13,7 @@ const cards = [
     { label: "Total Usuarios", key: "total" as const, icon: "group", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20" },
     { label: "Administradores", key: "admins" as const, icon: "admin_panel_settings", color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-900/20" },
     { label: "Profesores", key: "professors" as const, icon: "school", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
-    { label: "Padres de familia", key: "parents" as const, icon: "family_restroom", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20" },
+    { label: "Encargados legales", key: "parents" as const, icon: "family_restroom", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20" },
 ];
 
 export default function UserMetricsCards({ metrics }: UserMetricsCardsProps) {

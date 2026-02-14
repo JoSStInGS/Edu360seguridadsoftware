@@ -15,7 +15,11 @@ export default function IndexScreen() {
   }
 
   if (isAuthenticated && userData) {
-    if (userData.role === 'parent') {
+    // Professor takes priority if user has both roles
+    if (userData.roles.includes('professor')) {
+      return <Redirect href="/(tabs)" />;
+    }
+    if (userData.roles.includes('parent')) {
       return <Redirect href="/(tabs-parent)" />;
     }
     return <Redirect href="/(tabs)" />;

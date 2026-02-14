@@ -44,7 +44,7 @@ export interface AttendanceRecord {
 export interface StudentAttendance {
   studentId: string;
   studentName: string;
-  present: boolean;
+  status: 'en_proceso' | 'presente' | 'ausente';
 }
 
 export interface Group {
@@ -60,8 +60,38 @@ export interface ParentChild {
   grupoNombre: string | null;
 }
 
+export interface TeacherAbsence {
+  id: string;
+  profesorId: string;
+  profesorNombre: string;
+  startDate: string;          // "YYYY-MM-DD"
+  endDate: string;            // "YYYY-MM-DD"
+  reason: string;
+  substituteProfesorId?: string;
+  substituteProfesorNombre?: string;
+  status: 'active' | 'cancelled';
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChildAttendanceStatus {
   scheduleEntry: ScheduleEntry;
-  status: 'pending' | 'present' | 'absent';
+  status: 'pending' | 'en_proceso' | 'presente' | 'ausente';
   date: string;
+  teacherAbsence?: TeacherAbsence | null;
+}
+
+export interface Comunicado {
+  id: string;
+  profesorId: string;
+  profesorNombre: string;
+  studentCedula: string;
+  studentName: string;
+  grupoId: string;
+  grupoNombre: string;
+  subject: string;
+  message: string;
+  createdAt: string;
+  readBy: string[];
 }

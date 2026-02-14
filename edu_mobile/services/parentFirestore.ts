@@ -16,7 +16,9 @@ import type {
   ChildAttendanceStatus,
   ScheduleEntry,
   AttendanceRecord,
+  TeacherAbsence,
 } from '@/types';
+import { getActiveAbsencesForDate, buildAbsenceMap } from './absenceFirestore';
 
 /**
  * Obtiene los hijos vinculados a un padre.
@@ -147,10 +149,21 @@ export async function getChildAttendanceForDate(
   // Sort by period
   scheduleEntries.sort((a, b) => a.periodo - b.periodo);
 
-  // 2. For each schedule entry, check attendance
+  // 2. Fetch active absences for this date
+  let absenceMap = new Map<string, TeacherAbsence>();
+  try {
+    const absences = await getActiveAbsencesForDate(centerId, periodId, date);
+    absenceMap = buildAbsenceMap(absences);
+  } catch (err) {
+    console.error('Error fetching absences:', err);
+  }
+
+  // 3. For each schedule entry, check attendance and absences
   const results: ChildAttendanceStatus[] = [];
 
   for (const entry of scheduleEntries) {
+    const teacherAbsence = absenceMap.get(entry.profesorId) || null;
+
     const docId = `${grupoId}_${date}_${entry.id}`;
     const attendanceRef = doc(
       db,
@@ -165,7 +178,7 @@ export async function getChildAttendanceForDate(
     const attendanceSnap = await getDoc(attendanceRef);
 
     if (!attendanceSnap.exists()) {
-      results.push({ scheduleEntry: entry, status: 'pending', date });
+      results.push({ scheduleEntry: entry, status: 'pending', date, teacherAbsence });
       continue;
     }
 
@@ -175,12 +188,13 @@ export async function getChildAttendanceForDate(
     );
 
     if (!studentRecord) {
-      results.push({ scheduleEntry: entry, status: 'pending', date });
+      results.push({ scheduleEntry: entry, status: 'pending', date, teacherAbsence });
     } else {
       results.push({
         scheduleEntry: entry,
-        status: studentRecord.present ? 'present' : 'absent',
+        status: (studentRecord as any).status || ((studentRecord as any).present ? 'presente' : 'ausente'),
         date,
+        teacherAbsence,
       });
     }
   }
@@ -200,6 +214,14 @@ export function subscribeToChildAttendance(
   scheduleEntries: ScheduleEntry[],
   callback: (statuses: ChildAttendanceStatus[]) => void
 ): Unsubscribe {
+  // Fetch absences once (not real-time) at subscription start
+  let absenceMap = new Map<string, TeacherAbsence>();
+  getActiveAbsencesForDate(centerId, periodId, date)
+    .then((absences) => {
+      absenceMap = buildAbsenceMap(absences);
+    })
+    .catch((err) => console.error('Error fetching absences in subscription:', err));
+
   // Listen to the attendance collection for this group and date
   const attendanceRef = collection(
     db,
@@ -210,22 +232,21 @@ export function subscribeToChildAttendance(
     'attendance'
   );
 
-  // We listen to all attendance docs that start with this group and date
-  // Since Firestore doesn't support startsWith, we'll query broadly and filter
   const q = query(attendanceRef, where('grupoId', '==', grupoId), where('date', '==', date));
 
   return onSnapshot(q, (snapshot) => {
-    const attendanceMap = new Map<string, AttendanceRecord>();
+    const attendanceDataMap = new Map<string, AttendanceRecord>();
     snapshot.docs.forEach((d) => {
       const data = d.data() as AttendanceRecord;
-      attendanceMap.set(data.scheduleId, data);
+      attendanceDataMap.set(data.scheduleId, data);
     });
 
     const results: ChildAttendanceStatus[] = scheduleEntries.map((entry) => {
-      const attendance = attendanceMap.get(entry.id);
+      const attendance = attendanceDataMap.get(entry.id);
+      const teacherAbsence = absenceMap.get(entry.profesorId) || null;
 
       if (!attendance) {
-        return { scheduleEntry: entry, status: 'pending' as const, date };
+        return { scheduleEntry: entry, status: 'pending' as const, date, teacherAbsence };
       }
 
       const studentRecord = attendance.records?.find(
@@ -233,13 +254,14 @@ export function subscribeToChildAttendance(
       );
 
       if (!studentRecord) {
-        return { scheduleEntry: entry, status: 'pending' as const, date };
+        return { scheduleEntry: entry, status: 'pending' as const, date, teacherAbsence };
       }
 
       return {
         scheduleEntry: entry,
-        status: studentRecord.present ? 'present' as const : 'absent' as const,
+        status: ((studentRecord as any).status || ((studentRecord as any).present ? 'presente' : 'ausente')) as 'en_proceso' | 'presente' | 'ausente',
         date,
+        teacherAbsence,
       };
     });
 

@@ -26,7 +26,7 @@ type RoleOption = "admin" | "professor" | "parent";
 const roleOptions: { value: RoleOption; label: string; icon: string }[] = [
     { value: "admin", label: "Administrador", icon: "admin_panel_settings" },
     { value: "professor", label: "Profesor", icon: "school" },
-    { value: "parent", label: "Padre de familia", icon: "family_restroom" },
+    { value: "parent", label: "Encargado legal", icon: "family_restroom" },
 ];
 
 export default function GenerateCodeModal({
@@ -359,7 +359,7 @@ export default function GenerateCodeModal({
 
                                 {students.length > 0 && selectedStudents.length === 0 && (
                                     <p className="mt-2 text-xs text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                                        Busca y selecciona los estudiantes que son hijos de este padre.
+                                        Busca y selecciona los estudiantes que son hijos de este encargado.
                                     </p>
                                 )}
                             </div>
@@ -465,7 +465,7 @@ function getRoleLabel(role: string): string {
     switch (role) {
         case "admin": return "Administrador";
         case "professor": return "Profesor";
-        case "parent": return "Padre de familia";
+        case "parent": return "Encargado legal";
         default: return role;
     }
 }

@@ -1,30 +1,51 @@
 import { useEffect, useState } from "react";
 import { auth } from "@/app/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { getUserProfile } from "@/app/auth/services/auth";
+import type { UserRole } from "@/app/lib/roles";
+import { useActiveRoleStore } from "@/app/stores/useActiveRoleStore";
 
-/**
- * Custom React hook to track Firebase authentication state.
- * @returns {{ user: User | null, loading: boolean }}
- * - `user`: currently logged-in Firebase user, or `null` if not logged in.
- * - `loading`: `true` while authentication state is being determined, `false` afterwards.
- */
 export function useAuth() {
-    // State for the current user, initialized with the current Firebase user (if any)
     const [user, setUser] = useState<User | null>(auth.currentUser);
-
-    // State for loading indicator
+    const [roles, setRoles] = useState<UserRole[]>([]);
+    const [centerId, setCenterId] = useState<string | null>(null);
+    const [profesorId, setProfesorId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Subscribe to authentication state changes
-        const unsub = onAuthStateChanged(auth, (u) => {
-            setUser(u);       // update user state
-            setLoading(false); // set loading to false once state is known
+        const unsub = onAuthStateChanged(auth, async (u) => {
+            setUser(u);
+            if (u) {
+                try {
+                    const profile = await getUserProfile(u.uid);
+                    if (profile) {
+                        setRoles(profile.roles);
+                        setCenterId(profile.centerId);
+                        setProfesorId(profile.profesorId);
+                        useActiveRoleStore.getState().initializeRoles(profile.roles);
+                    } else {
+                        setRoles([]);
+                        setCenterId(null);
+                        setProfesorId(null);
+                        useActiveRoleStore.getState().initializeRoles([]);
+                    }
+                } catch {
+                    setRoles([]);
+                    setCenterId(null);
+                    setProfesorId(null);
+                    useActiveRoleStore.getState().initializeRoles([]);
+                }
+            } else {
+                setRoles([]);
+                setCenterId(null);
+                setProfesorId(null);
+                useActiveRoleStore.getState().initializeRoles([]);
+            }
+            setLoading(false);
         });
 
-        // Cleanup subscription on unmount
         return () => unsub();
     }, []);
 
-    return { user, loading };
+    return { user, roles, centerId, profesorId, loading };
 }

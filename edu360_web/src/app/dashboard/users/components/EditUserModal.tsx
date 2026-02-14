@@ -1,38 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UserRow } from "./UsersTable";
 
 interface EditUserModalProps {
     isOpen: boolean;
     user: UserRow | null;
     onClose: () => void;
-    onSave: (targetUid: string, role: string) => Promise<void>;
+    onSave: (targetUid: string, roles: string[]) => Promise<void>;
 }
 
-const roles = [
+const roleOptions = [
     { value: "admin", label: "Administrador" },
     { value: "professor", label: "Profesor" },
-    { value: "parent", label: "Padre de familia" },
+    { value: "parent", label: "Encargado legal" },
 ];
 
 export default function EditUserModal({ isOpen, user, onClose, onSave }: EditUserModalProps) {
-    const [selectedRole, setSelectedRole] = useState(user?.role || "");
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Sync selectedRole when user changes
-    if (user && selectedRole !== user.role && !isSaving) {
-        setSelectedRole(user.role);
-    }
+    useEffect(() => {
+        if (user) {
+            setSelectedRoles([...user.roles]);
+        }
+    }, [user]);
+
+    const toggleRole = (role: string) => {
+        setSelectedRoles((prev) =>
+            prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+        );
+    };
 
     const handleSave = async () => {
-        if (!user || !selectedRole) return;
+        if (!user || selectedRoles.length === 0) return;
         setIsSaving(true);
         try {
-            await onSave(user.uid, selectedRole);
+            await onSave(user.uid, selectedRoles);
             onClose();
         } finally {
             setIsSaving(false);
         }
     };
+
+    const rolesChanged =
+        user &&
+        (selectedRoles.length !== user.roles.length ||
+            selectedRoles.some((r) => !user.roles.includes(r)));
 
     if (!isOpen || !user) return null;
 
@@ -70,37 +82,41 @@ export default function EditUserModal({ isOpen, user, onClose, onSave }: EditUse
                     </div>
                 </div>
 
-                {/* Role Selector */}
+                {/* Role Selector - Checkboxes */}
                 <div className="mb-6">
                     <label className="mb-2 block text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                        Rol del usuario
+                        Roles del usuario
                     </label>
                     <div className="flex flex-col gap-2">
-                        {roles.map((r) => (
-                            <button
-                                key={r.value}
-                                onClick={() => setSelectedRole(r.value)}
-                                className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm font-medium transition-all ${
-                                    selectedRole === r.value
-                                        ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
-                                        : "border-[var(--border-light)] dark:border-[var(--border-dark)] text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] hover:border-[var(--primary)]"
-                                }`}
-                            >
-                                <span className={`h-4 w-4 rounded-full border-2 ${
-                                    selectedRole === r.value
-                                        ? "border-[var(--primary)] bg-[var(--primary)]"
-                                        : "border-[var(--muted-light)] dark:border-[var(--muted-dark)]"
-                                }`}>
-                                    {selectedRole === r.value && (
-                                        <span className="flex h-full w-full items-center justify-center">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                                        </span>
-                                    )}
-                                </span>
-                                {r.label}
-                            </button>
-                        ))}
+                        {roleOptions.map((r) => {
+                            const isSelected = selectedRoles.includes(r.value);
+                            return (
+                                <button
+                                    key={r.value}
+                                    onClick={() => toggleRole(r.value)}
+                                    className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm font-medium transition-all ${
+                                        isSelected
+                                            ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                                            : "border-[var(--border-light)] dark:border-[var(--border-dark)] text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] hover:border-[var(--primary)]"
+                                    }`}
+                                >
+                                    <span className={`flex h-4 w-4 items-center justify-center rounded border-2 ${
+                                        isSelected
+                                            ? "border-[var(--primary)] bg-[var(--primary)]"
+                                            : "border-[var(--muted-light)] dark:border-[var(--muted-dark)]"
+                                    }`}>
+                                        {isSelected && (
+                                            <span className="material-symbols-outlined text-white text-xs">check</span>
+                                        )}
+                                    </span>
+                                    {r.label}
+                                </button>
+                            );
+                        })}
                     </div>
+                    {selectedRoles.length === 0 && (
+                        <p className="mt-2 text-xs text-red-500">Debe seleccionar al menos un rol</p>
+                    )}
                 </div>
 
                 {/* Actions */}
@@ -113,7 +129,7 @@ export default function EditUserModal({ isOpen, user, onClose, onSave }: EditUse
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={isSaving || selectedRole === user.role}
+                        disabled={isSaving || !rolesChanged || selectedRoles.length === 0}
                         className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isSaving ? (

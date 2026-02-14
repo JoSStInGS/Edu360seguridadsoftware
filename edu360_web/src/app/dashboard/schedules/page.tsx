@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { useAuth } from "@/app/auth/hooks/useAuth";
+import { useActiveRoleStore } from "@/app/stores/useActiveRoleStore";
+import ScheduleStudentPanel from "./components/ScheduleStudentPanel";
 
 interface Teacher {
     id: string;
@@ -39,13 +41,21 @@ interface ScheduleEntry {
     periodo: number;
     horaInicio: string;
     horaFin: string;
+    profesorId: string;
     profesorNombre: string;
+    grupoId: string;
     grupoNombre: string;
     divisionId?: string;
     divisionNombre?: string;
     isEntireClass?: boolean;
     asignaturaNombre: string;
     aulaNombre: string;
+}
+
+interface SelectedCell {
+    entry: ScheduleEntry;
+    dayIndex: number;
+    periodo: number;
 }
 
 type ViewMode = "teachers" | "groups";
@@ -68,7 +78,9 @@ const SUBJECT_COLORS = [
 
 export default function SchedulesPage() {
     const { selectedPeriod, isLoading: isPeriodLoading } = usePeriodStore();
-    const { user } = useAuth();
+    const { user, profesorId: authProfesorId } = useAuth();
+    const { activeRole } = useActiveRoleStore();
+    const isProfessorView = activeRole === "professor";
 
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
@@ -79,9 +91,11 @@ export default function SchedulesPage() {
     const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
     const [selectedTeacherId, setSelectedTeacherId] = useState("");
     const [selectedGroupId, setSelectedGroupId] = useState("");
-    const [selectedDivisionId, setSelectedDivisionId] = useState<string>("all"); // "all" para ver todas
+    const [selectedDivisionId, setSelectedDivisionId] = useState<string>("all");
     const [scheduleData, setScheduleData] = useState<ScheduleEntry[]>([]);
     const [viewMode, setViewMode] = useState<ViewMode>("teachers");
+    const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+    const [resolvedProfesorId, setResolvedProfesorId] = useState<string | null>(null);
 
     // Fetch initial status (has schedules? list of teachers and groups)
     useEffect(() => {
@@ -102,9 +116,30 @@ export default function SchedulesPage() {
                     setGroups(data.groups || []);
                     setDivisions(data.divisions || []);
                     setTimeSlots(data.timeSlots || []);
-                    if (data.teachers && data.teachers.length > 0) {
-                        setSelectedTeacherId(data.teachers[0].id);
+
+                    if (isProfessorView) {
+                        // Resolve profesorId: use authProfesorId or find by email via teacher-schedule API
+                        let profId = authProfesorId;
+                        if (!profId) {
+                            try {
+                                const schedRes = await fetch(
+                                    `/api/attendance/teacher-schedule?period=${selectedPeriod}`,
+                                    { headers: { Authorization: `Bearer ${token}` } }
+                                );
+                                const schedData = await schedRes.json();
+                                profId = schedData.profesorId || null;
+                            } catch { /* ignore */ }
+                        }
+                        if (profId) {
+                            setResolvedProfesorId(profId);
+                            setSelectedTeacherId(profId);
+                        }
+                    } else {
+                        if (data.teachers && data.teachers.length > 0) {
+                            setSelectedTeacherId(data.teachers[0].id);
+                        }
                     }
+
                     if (data.groups && data.groups.length > 0) {
                         setSelectedGroupId(data.groups[0].id);
                     }
@@ -121,7 +156,7 @@ export default function SchedulesPage() {
         if (!isPeriodLoading && selectedPeriod) {
             checkSchedules();
         }
-    }, [selectedPeriod, user, isPeriodLoading]);
+    }, [selectedPeriod, user, isPeriodLoading, isProfessorView, authProfesorId]);
 
     // Fetch schedule based on view mode (teacher or group)
     useEffect(() => {
@@ -184,6 +219,29 @@ export default function SchedulesPage() {
         return subjectColorMap.get(subjectName) || SUBJECT_COLORS[0];
     };
 
+    // In professor view, filter groups to only those where the professor teaches
+    const professorGroupIds = useMemo(() => {
+        if (!isProfessorView) return null;
+        return new Set(scheduleData.map(s => s.grupoId));
+    }, [isProfessorView, scheduleData]);
+
+    const filteredGroups = useMemo(() => {
+        if (!isProfessorView || !professorGroupIds) return groups;
+        return groups.filter(g => professorGroupIds.has(g.id));
+    }, [groups, isProfessorView, professorGroupIds]);
+
+    // Get professor name for display
+    const professorName = useMemo(() => {
+        if (!isProfessorView || !resolvedProfesorId) return null;
+        const teacher = teachers.find(t => t.id === resolvedProfesorId);
+        return teacher?.nombre || null;
+    }, [isProfessorView, resolvedProfesorId, teachers]);
+
+    // Clear selectedCell when changing view or selection
+    useEffect(() => {
+        setSelectedCell(null);
+    }, [viewMode, selectedTeacherId, selectedGroupId, selectedDivisionId]);
+
 
     if (isPeriodLoading || isLoading || hasSchedules === null) {
         return (
@@ -207,15 +265,19 @@ export default function SchedulesPage() {
                     No hay horarios importados
                 </h2>
                 <p className="mb-8 max-w-md text-gray-500 dark:text-gray-400">
-                    Para comenzar a organizar las clases, necesitas importar los horarios desde aSc Timetables.
+                    {isProfessorView
+                        ? "Aun no se han importado horarios para este periodo. Contacta al administrador."
+                        : "Para comenzar a organizar las clases, necesitas importar los horarios desde aSc Timetables."}
                 </p>
-                <Link
-                    href="/dashboard/schedules/import"
-                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-6 py-3 font-medium text-white shadow-sm transition-transform hover:scale-105 hover:shadow-md"
-                >
-                    <span className="material-symbols-outlined">upload_file</span>
-                    Empezar a importar horarios
-                </Link>
+                {!isProfessorView && (
+                    <Link
+                        href="/dashboard/schedules/import"
+                        className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-6 py-3 font-medium text-white shadow-sm transition-transform hover:scale-105 hover:shadow-md"
+                    >
+                        <span className="material-symbols-outlined">upload_file</span>
+                        Empezar a importar horarios
+                    </Link>
+                )}
             </div>
         );
     }
@@ -226,122 +288,132 @@ export default function SchedulesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Horario Semanal</h1>
-                    <p className="text-gray-500 mt-1 dark:text-gray-400">Visualización del calendario académico</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                        {isProfessorView ? "Mi Horario" : "Horario Semanal"}
+                    </h1>
+                    <p className="text-gray-500 mt-1 dark:text-gray-400">
+                        {isProfessorView
+                            ? "Selecciona una clase para ver los estudiantes"
+                            : "Visualización del calendario académico"}
+                    </p>
                 </div>
 
-                <div className="flex gap-2">
-                    <Link
-                        href="/dashboard/schedules/import"
-                        className="inline-flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        title="Importar nuevos horarios"
-                    >
-                        <span className="material-symbols-outlined text-[20px]">upload_file</span>
-                        <span className="hidden lg:inline">Importar</span>
-                    </Link>
+                {!isProfessorView && (
+                    <div className="flex gap-2">
+                        <Link
+                            href="/dashboard/schedules/import"
+                            className="inline-flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            title="Importar nuevos horarios"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">upload_file</span>
+                            <span className="hidden lg:inline">Importar</span>
+                        </Link>
 
-                    <button className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-[#2d2d2d] px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <span className="material-symbols-outlined text-[20px]">print</span>
-                        Exportar
-                    </button>
-                </div>
+                        <button className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-[#2d2d2d] px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <span className="material-symbols-outlined text-[20px]">print</span>
+                            Exportar
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* View Mode Tabs + Selector */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-[#1e1e1e] p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                {/* Tabs for view mode */}
-                <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                    <button
-                        onClick={() => setViewMode("teachers")}
-                        disabled={isLoadingSchedule}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                            viewMode === "teachers"
-                                ? "bg-white dark:bg-[#2d2d2d] text-[var(--primary)] shadow-sm"
-                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                        }`}
-                    >
-                        <span className="material-symbols-outlined text-[20px]">person</span>
-                        Por Profesor
-                    </button>
-                    <button
-                        onClick={() => setViewMode("groups")}
-                        disabled={isLoadingSchedule}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                            viewMode === "groups"
-                                ? "bg-white dark:bg-[#2d2d2d] text-[var(--primary)] shadow-sm"
-                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                        }`}
-                    >
-                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                        Por Grupo
-                    </button>
-                </div>
-
-                {/* Selector (Teacher or Group) */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="entity-select">
-                        {viewMode === "teachers" ? "Profesor:" : "Grupo:"}
-                    </label>
-                    <div className="relative min-w-[240px]">
-                        {viewMode === "teachers" ? (
-                            <select
-                                id="entity-select"
-                                disabled={isLoadingSchedule}
-                                className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                value={selectedTeacherId}
-                                onChange={(e) => setSelectedTeacherId(e.target.value)}
-                            >
-                                {teachers.map(t => (
-                                    <option key={t.id} value={t.id}>{t.nombre}</option>
-                                ))}
-                            </select>
-                        ) : (
-                            <select
-                                id="entity-select"
-                                disabled={isLoadingSchedule}
-                                className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                value={selectedGroupId}
-                                onChange={(e) => setSelectedGroupId(e.target.value)}
-                            >
-                                {groups.map(g => (
-                                    <option key={g.id} value={g.id}>
-                                        {g.nombre} {g.hasDivisions && "(con divisiones)"}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                            <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                        </div>
+            {/* View Mode Tabs + Selector (hidden for professor view) */}
+            {!isProfessorView && (
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-[#1e1e1e] p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    {/* Tabs for view mode */}
+                    <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                        <button
+                            onClick={() => setViewMode("teachers")}
+                            disabled={isLoadingSchedule}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                viewMode === "teachers"
+                                    ? "bg-white dark:bg-[#2d2d2d] text-[var(--primary)] shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">person</span>
+                            Por Profesor
+                        </button>
+                        <button
+                            onClick={() => setViewMode("groups")}
+                            disabled={isLoadingSchedule}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                viewMode === "groups"
+                                    ? "bg-white dark:bg-[#2d2d2d] text-[var(--primary)] shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">groups</span>
+                            Por Grupo
+                        </button>
                     </div>
 
-                    {/* Division selector (only for groups with divisions) */}
-                    {viewMode === "groups" && selectedGroupHasDivisions && (
-                        <>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="division-select">
-                                División:
-                            </label>
-                            <div className="relative min-w-[180px]">
+                    {/* Selector (Teacher or Group) */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="entity-select">
+                            {viewMode === "teachers" ? "Profesor:" : "Grupo:"}
+                        </label>
+                        <div className="relative min-w-[240px]">
+                            {viewMode === "teachers" ? (
                                 <select
-                                    id="division-select"
+                                    id="entity-select"
                                     disabled={isLoadingSchedule}
                                     className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    value={selectedDivisionId}
-                                    onChange={(e) => setSelectedDivisionId(e.target.value)}
+                                    value={selectedTeacherId}
+                                    onChange={(e) => setSelectedTeacherId(e.target.value)}
                                 >
-                                    <option value="all">Todas las divisiones</option>
-                                    {selectedGroupDivisions.map(d => (
-                                        <option key={d.id} value={d.id}>{d.nombre}</option>
+                                    {teachers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.nombre}</option>
                                     ))}
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                    <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                                </div>
+                            ) : (
+                                <select
+                                    id="entity-select"
+                                    disabled={isLoadingSchedule}
+                                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    value={selectedGroupId}
+                                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                                >
+                                    {filteredGroups.map(g => (
+                                        <option key={g.id} value={g.id}>
+                                            {g.nombre} {g.hasDivisions && "(con divisiones)"}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                <span className="material-symbols-outlined text-[20px]">expand_more</span>
                             </div>
-                        </>
-                    )}
+                        </div>
+
+                        {/* Division selector (only for groups with divisions) */}
+                        {viewMode === "groups" && selectedGroupHasDivisions && (
+                            <>
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="division-select">
+                                    División:
+                                </label>
+                                <div className="relative min-w-[180px]">
+                                    <select
+                                        id="division-select"
+                                        disabled={isLoadingSchedule}
+                                        className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        value={selectedDivisionId}
+                                        onChange={(e) => setSelectedDivisionId(e.target.value)}
+                                    >
+                                        <option value="all">Todas las divisiones</option>
+                                        {selectedGroupDivisions.map(d => (
+                                            <option key={d.id} value={d.id}>{d.nombre}</option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                        <span className="material-symbols-outlined text-[20px]">expand_more</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Schedule Table + Legend Layout */}
             <div className="flex flex-col xl:flex-row gap-4">
@@ -389,8 +461,13 @@ export default function SchedulesPage() {
                                                         <div className={`flex flex-col gap-1 ${entries.length > 1 ? 'h-full' : ''}`}>
                                                             {entries.map((entry, idx) => {
                                                                 const colors = getSubjectColor(entry.asignaturaNombre);
+                                                                const isSelected = selectedCell?.entry.id === entry.id && selectedCell?.dayIndex === dayIndex;
                                                                 return (
-                                                                    <div key={idx} className={`rounded-lg ${colors.bg} p-2 hover:shadow-md transition-shadow border ${colors.border} ${entries.length > 1 ? 'flex-1' : 'h-full'}`}>
+                                                                    <div
+                                                                        key={idx}
+                                                                        className={`rounded-lg ${colors.bg} p-2 hover:shadow-md transition-shadow border ${colors.border} ${entries.length > 1 ? 'flex-1' : 'h-full'} ${isProfessorView ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-[var(--primary)] ring-offset-1' : ''}`}
+                                                                        onClick={isProfessorView ? () => setSelectedCell({ entry, dayIndex, periodo: slot.periodo }) : undefined}
+                                                                    >
                                                                         <p className={`text-[11px] font-bold ${colors.text} line-clamp-1`}>{entry.asignaturaNombre}</p>
                                                                         <div className={`mt-1 flex flex-col gap-0.5 text-[10px] ${colors.subtext}`}>
                                                                             {viewMode === "teachers" ? (
@@ -446,8 +523,15 @@ export default function SchedulesPage() {
                     </div>
                 </div>
 
-                {/* Leyenda de Asignaturas - Sidebar */}
-                {scheduleData.length > 0 && (
+                {/* Sidebar: Student panel (professor) or Legend */}
+                {isProfessorView && selectedCell ? (
+                    <ScheduleStudentPanel
+                        selectedCell={selectedCell}
+                        periodId={selectedPeriod!}
+                        profesorId={resolvedProfesorId || ""}
+                        onClose={() => setSelectedCell(null)}
+                    />
+                ) : scheduleData.length > 0 ? (
                     <div className="xl:w-56 shrink-0 bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm h-fit">
                         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                             <span className="material-symbols-outlined text-[18px]">palette</span>
@@ -466,7 +550,7 @@ export default function SchedulesPage() {
                             </div>
                         </div>
                     </div>
-                )}
+                ) : null}
             </div>
 
         </div>

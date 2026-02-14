@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 export default function HomeScreen() {
   const { userData } = useAuth();
-  const { schedule, loading, error, refreshSchedule } = useTeacher();
+  const { schedule, loading, error, refreshSchedule, activeAbsence } = useTeacher();
   const { colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -79,6 +79,36 @@ export default function HomeScreen() {
             </View>
           </View>
         ) : null}
+
+        {/* Absence banner */}
+        {activeAbsence && (
+          <View style={[styles.card, { backgroundColor: colors.card }, Shadows.sm]}>
+            <View style={[styles.absenceBanner, { backgroundColor: colors.errorLight }]}>
+              <View style={styles.absenceBannerHeader}>
+                <Ionicons name="person-remove" size={22} color={colors.error} />
+                <Text style={[styles.absenceBannerTitle, { color: colors.error }]}>
+                  Marcado como ausente
+                </Text>
+              </View>
+              <Text style={[styles.absenceBannerDates, { color: colors.text }]}>
+                {activeAbsence.startDate === activeAbsence.endDate
+                  ? `Fecha: ${formatAbsenceDate(activeAbsence.startDate)}`
+                  : `Del ${formatAbsenceDate(activeAbsence.startDate)} al ${formatAbsenceDate(activeAbsence.endDate)}`}
+              </Text>
+              <Text style={[styles.absenceBannerReason, { color: colors.textSecondary }]}>
+                Motivo: {activeAbsence.reason}
+              </Text>
+              {activeAbsence.substituteProfesorNombre && (
+                <View style={[styles.substituteChip, { backgroundColor: colors.warningLight }]}>
+                  <Ionicons name="swap-horizontal" size={14} color={colors.warning} />
+                  <Text style={[styles.substituteChipText, { color: colors.warning }]}>
+                    Sustituto: {activeAbsence.substituteProfesorNombre}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Current Class Card */}
         {currentClass ? (
@@ -165,6 +195,7 @@ export default function HomeScreen() {
           ) : (
             todayClasses.map((entry, idx) => {
               const isCurrent = currentClass?.id === entry.id;
+              const isAbsent = !!activeAbsence;
               return (
                 <View
                   key={entry.id}
@@ -174,20 +205,21 @@ export default function HomeScreen() {
                       borderBottomWidth: 1,
                       borderBottomColor: colors.border,
                     },
-                    isCurrent && { backgroundColor: colors.primaryLight, borderRadius: BorderRadius.md },
+                    isCurrent && !isAbsent && { backgroundColor: colors.primaryLight, borderRadius: BorderRadius.md },
+                    isAbsent && { opacity: 0.5 },
                   ]}
                 >
                   <View style={styles.classTimeColumn}>
-                    <Text style={[styles.classTimeStart, { color: isCurrent ? colors.primary : colors.text }]}>
+                    <Text style={[styles.classTimeStart, { color: isCurrent && !isAbsent ? colors.primary : colors.text }]}>
                       {formatTime(entry.horaInicio)}
                     </Text>
                     <Text style={[styles.classTimeEnd, { color: colors.muted }]}>
                       {formatTime(entry.horaFin)}
                     </Text>
                   </View>
-                  <View style={[styles.classTimeLine, { backgroundColor: isCurrent ? colors.primary : colors.border }]} />
+                  <View style={[styles.classTimeLine, { backgroundColor: isCurrent && !isAbsent ? colors.primary : colors.border }]} />
                   <View style={styles.classDetails}>
-                    <Text style={[styles.classSubject, { color: isCurrent ? colors.primary : colors.text }]}>
+                    <Text style={[styles.classSubject, { color: isCurrent && !isAbsent ? colors.primary : colors.text }]}>
                       {entry.asignaturaNombre}
                     </Text>
                     <Text style={[styles.classGroup, { color: colors.muted }]}>
@@ -202,6 +234,11 @@ export default function HomeScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function formatAbsenceDate(dateStr: string): string {
+  const date = new Date(dateStr + 'T12:00:00');
+  return date.toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const styles = StyleSheet.create({
@@ -262,6 +299,44 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
     flex: 1,
+  },
+  // Absence banner
+  absenceBanner: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  absenceBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  absenceBannerTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+  },
+  absenceBannerDates: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    marginBottom: 4,
+  },
+  absenceBannerReason: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+  },
+  substituteChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+  },
+  substituteChipText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
   },
   // Current class
   currentClassHeader: {

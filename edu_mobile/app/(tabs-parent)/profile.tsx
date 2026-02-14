@@ -74,9 +74,15 @@ export default function ParentProfileScreen() {
             <Text style={[styles.centerText, { color: colors.muted }]}>{userData.centerName}</Text>
           </View>
         )}
-        <View style={[styles.roleBadge, { backgroundColor: colors.primaryLight }]}>
-          <Ionicons name="people" size={14} color={colors.primary} />
-          <Text style={[styles.roleText, { color: colors.primary }]}>Padre de familia</Text>
+        <View style={styles.rolesContainer}>
+          {(userData?.roles ?? ['parent']).map((role) => (
+            <View key={role} style={[styles.roleBadge, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name={role === 'parent' ? 'people' : role === 'professor' ? 'school' : 'shield'} size={14} color={colors.primary} />
+              <Text style={[styles.roleText, { color: colors.primary }]}>
+                {role === 'parent' ? 'Encargado legal' : role === 'professor' ? 'Profesor' : 'Admin'}
+              </Text>
+            </View>
+          ))}
         </View>
       </View>
 
@@ -107,6 +113,16 @@ export default function ParentProfileScreen() {
           ))
         )}
       </View>
+
+      {/* Add another role */}
+      <TouchableOpacity
+        style={[styles.addRoleButton, { backgroundColor: colors.card, borderColor: colors.border }, Shadows.sm]}
+        onPress={() => router.push('/add-role' as never)}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+        <Text style={[styles.addRoleText, { color: colors.primary }]}>Agregar otro rol</Text>
+      </TouchableOpacity>
 
       {/* Logout */}
       <TouchableOpacity
@@ -150,6 +166,13 @@ const styles = StyleSheet.create({
   emailText: { fontSize: FontSize.sm, fontFamily: FontFamily.regular, marginTop: Spacing.xs },
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
   centerText: { fontSize: FontSize.sm, fontFamily: FontFamily.regular },
+  rolesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -157,9 +180,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    marginTop: Spacing.md,
   },
   roleText: { fontSize: FontSize.xs, fontFamily: FontFamily.medium },
+  addRoleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  addRoleText: { fontSize: FontSize.base, fontFamily: FontFamily.medium },
 
   // Section
   section: {

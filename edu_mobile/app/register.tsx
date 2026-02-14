@@ -173,14 +173,14 @@ export default function RegisterScreen() {
       const profileData: {
         email: string;
         displayName: string;
-        role: string;
+        roles: string[];
         centerId: string;
         centerName: string;
         profesorId?: string;
       } = {
         email: email.trim(),
         displayName: displayName.trim(),
-        role: validatedRole!,
+        roles: [validatedRole!],
         centerId: selectedCenter!.id,
         centerName: selectedCenter!.name,
       };
@@ -238,7 +238,7 @@ export default function RegisterScreen() {
 
   const getRoleLabel = () => {
     if (validatedRole === 'professor') return 'Profesor';
-    if (validatedRole === 'parent') return 'Padre de familia';
+    if (validatedRole === 'parent') return 'Encargado legal';
     return '';
   };
 

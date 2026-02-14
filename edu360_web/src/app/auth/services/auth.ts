@@ -15,6 +15,7 @@ import {
     User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { normalizeRoles, type UserRole } from "@/app/lib/roles";
 
 /**
  * Initiates Microsoft login using a popup.
@@ -132,4 +133,31 @@ export async function getUserRole(userId: string): Promise<string | null> {
     return data.role ?? null;
 }
 
+export async function getUserRoles(userId: string): Promise<UserRole[]> {
+    const ref = doc(db, "users", userId);
+    const snapshot = await getDoc(ref);
+    if (!snapshot.exists()) return [];
+    return normalizeRoles(snapshot.data());
+}
 
+export interface UserProfileData {
+    roles: UserRole[];
+    centerId: string | null;
+    profesorId: string | null;
+    displayName: string | null;
+    email: string | null;
+}
+
+export async function getUserProfile(userId: string): Promise<UserProfileData | null> {
+    const ref = doc(db, "users", userId);
+    const snapshot = await getDoc(ref);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    return {
+        roles: normalizeRoles(data),
+        centerId: (data.centerId as string) ?? null,
+        profesorId: (data.profesorId as string) ?? null,
+        displayName: (data.displayName as string) ?? null,
+        email: (data.email as string) ?? null,
+    };
+}

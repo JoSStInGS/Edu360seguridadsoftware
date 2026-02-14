@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserRole, getUserData } from '@/services/auth';
+import { normalizeRoles, getUserData } from '@/services/auth';
 
 interface UserData {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
-  role: string | null;
+  roles: string[];
   centerId: string | null;
   centerName: string | null;
 }
@@ -36,17 +36,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const role = await getUserRole(firebaseUser.uid);
+        const data = await getUserData(firebaseUser.uid);
+        const roles = normalizeRoles(data);
 
-        if (role && ALLOWED_ROLES.includes(role)) {
+        if (roles.some((r) => ALLOWED_ROLES.includes(r))) {
           setUser(firebaseUser);
-          const data = await getUserData(firebaseUser.uid);
           setUserData({
             email: (data?.email as string) ?? firebaseUser.email,
             displayName:
               (data?.displayName as string) ?? firebaseUser.displayName,
             photoURL: (data?.photoURL as string) ?? firebaseUser.photoURL,
-            role: role,
+            roles,
             centerId: (data?.centerId as string) ?? null,
             centerName: (data?.centerName as string) ?? null,
           });

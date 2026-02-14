@@ -153,7 +153,7 @@ export default function UsersPage() {
     const roleFilterMap: Record<string, string> = {
         Administrador: "admin",
         Profesor: "professor",
-        "Padre de familia": "parent",
+        "Encargado legal": "parent",
     };
 
     const filteredUsers = users.filter((u) => {
@@ -161,7 +161,7 @@ export default function UsersPage() {
             (u.displayName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
             (u.email || "").toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole =
-            selectedRole === "Todos" || u.role === roleFilterMap[selectedRole];
+            selectedRole === "Todos" || u.roles.includes(roleFilterMap[selectedRole]);
         return matchesSearch && matchesRole;
     });
 
@@ -198,7 +198,7 @@ export default function UsersPage() {
         setShowEditModal(true);
     };
 
-    const handleSaveEdit = async (targetUid: string, role: string) => {
+    const handleSaveEdit = async (targetUid: string, roles: string[]) => {
         const token = await getToken();
         if (!token) return;
 
@@ -208,7 +208,7 @@ export default function UsersPage() {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ targetUid, role }),
+            body: JSON.stringify({ targetUid, roles }),
         });
 
         if (res.ok) {
@@ -258,7 +258,7 @@ export default function UsersPage() {
                             Rol
                         </label>
                         <CustomSelect
-                            availableKeys={["Todos", "Administrador", "Profesor", "Padre de familia"]}
+                            availableKeys={["Todos", "Administrador", "Profesor", "Encargado legal"]}
                             value={selectedRole}
                             onChange={(key) => setSelectedRole(key)}
                             className="mt-1"
