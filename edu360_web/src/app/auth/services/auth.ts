@@ -1,6 +1,5 @@
 import {
     auth,
-    microsoftProvider,
     googleProvider,
     db,
 } from "@/app/lib/firebase";
@@ -9,40 +8,12 @@ import {
     signInWithRedirect,
     getRedirectResult,
     signOut,
-    OAuthProvider,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { normalizeRoles, type UserRole } from "@/app/lib/roles";
-
-/**
- * Initiates Microsoft login using a popup.
- * If the popup is blocked by the browser, falls back to redirect login.
- * @returns {Promise<void>}
- */
-export async function signInWithMicrosoft(): Promise<User | null> {
-    try {
-        // Attempt login with popup
-        const result = await signInWithPopup(auth, microsoftProvider);
-
-        // Extract credentials and access token (for Microsoft Graph API if needed)
-        const cred = OAuthProvider.credentialFromResult(result);
-        const accessToken = cred?.accessToken;
-        console.log("Successful login with:", result.user.email, accessToken);
-        await ensureInitialUserDoc(result.user);
-        return result.user;
-    } catch (err: unknown) {
-        // If popup is blocked, fallback to redirect
-        if (typeof err === "object" && err && (err as { code?: string }).code === "auth/popup-blocked") {
-            await signInWithRedirect(auth, microsoftProvider);
-            return null;
-        }
-        // Re-throw other errors
-        throw err;
-    }
-}
 
 /**
  * Initiates Google login using a popup or redirect as fallback.
@@ -146,6 +117,7 @@ export interface UserProfileData {
     profesorId: string | null;
     displayName: string | null;
     email: string | null;
+    mepEmail: string | null;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileData | null> {
@@ -159,5 +131,23 @@ export async function getUserProfile(userId: string): Promise<UserProfileData | 
         profesorId: (data.profesorId as string) ?? null,
         displayName: (data.displayName as string) ?? null,
         email: (data.email as string) ?? null,
+        mepEmail: (data.mepEmail as string) ?? null,
     };
+}
+
+/**
+ * Returns the expected MEP email domain for the given roles.
+ * Parents: @est.mep.go.cr | Admins/Professors: @mep.go.cr
+ */
+export function getMepDomain(roles: UserRole[]): string {
+    if (roles.includes("parent")) return "@est.mep.go.cr";
+    return "@mep.go.cr";
+}
+
+/**
+ * Returns true if the email matches the expected MEP domain for the given roles.
+ */
+export function isMepEmail(email: string, roles: UserRole[]): boolean {
+    const domain = getMepDomain(roles);
+    return email.toLowerCase().endsWith(domain);
 }

@@ -88,17 +88,17 @@ export function subscribeToComunicadosForChildren(
     'comunicados'
   );
 
+  // Sin orderBy para evitar índice compuesto — se ordena en memoria
   const q = query(
     ref,
     where('studentCedula', 'in', childCedulas),
-    orderBy('createdAt', 'desc')
   );
 
   return onSnapshot(q, (snapshot) => {
-    const comunicados = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    })) as Comunicado[];
+    const comunicados = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() })) as Comunicado[];
+    // Ordenar por createdAt desc en memoria
+    comunicados.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     callback(comunicados);
   });
 }

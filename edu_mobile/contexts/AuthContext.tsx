@@ -10,6 +10,7 @@ interface UserData {
   roles: string[];
   centerId: string | null;
   centerName: string | null;
+  mepEmail: string | null;
 }
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
   userData: UserData | null;
   loading: boolean;
   isAuthenticated: boolean;
+  needsMepEmail: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   userData: null,
   loading: true,
   isAuthenticated: false,
+  needsMepEmail: false,
 });
 
 const ALLOWED_ROLES = ['professor', 'parent'];
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             roles,
             centerId: (data?.centerId as string) ?? null,
             centerName: (data?.centerName as string) ?? null,
+            mepEmail: (data?.mepEmail as string) ?? null,
           });
         } else {
           setUser(null);
@@ -64,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  const needsMepEmail = !!user && !!userData && !userData.mepEmail;
+
   return (
     <AuthContext.Provider
       value={{
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userData,
         loading,
         isAuthenticated: !!user && !!userData,
+        needsMepEmail,
       }}
     >
       {children}

@@ -7,14 +7,17 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 export default function WelcomePage() {
-    const { user, roles, loading } = useAuth();
+    const { user, roles, mepEmail, loading } = useAuth();
     const router = useRouter();
     const [loggingOut, setLoggingOut] = useState(false);
 
     useEffect(() => {
         if (!loading) {
             if (user) {
-                if (canAccessWeb(roles)) {
+                if (!mepEmail) {
+                    // User has no MEP email registered yet
+                    router.replace('/auth/mep-email');
+                } else if (canAccessWeb(roles)) {
                     router.replace('/dashboard');
                 } else {
                     // Parent-only: redirect back to auth
@@ -24,7 +27,7 @@ export default function WelcomePage() {
                 router.replace('/auth');
             }
         }
-    }, [loading, router, user, roles]);
+    }, [loading, router, user, roles, mepEmail]);
 
     const handleLogout = async () => {
         setLoggingOut(true);

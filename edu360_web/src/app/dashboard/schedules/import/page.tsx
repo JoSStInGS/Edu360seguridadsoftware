@@ -4,6 +4,7 @@ import { useState, useEffect, DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { useAuth } from "@/app/auth/hooks/useAuth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
     ScheduleTeacher,
     ScheduleSubject,
@@ -639,25 +640,24 @@ function ConfigurationCard({
                 </div>
                 {/* Period Selector */}
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)] whitespace-nowrap" htmlFor="period">
+                    <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)] whitespace-nowrap">
                         Periodo Lectivo:
                     </label>
-                    <div className="relative w-full md:w-64">
-                        <select
-                            className="w-full pl-3 pr-10 py-2 text-sm border border-[var(--border-light)] dark:border-[var(--border-dark)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-[var(--card-light)] dark:bg-[var(--card-dark)] text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] appearance-none cursor-pointer"
-                            id="period"
+                    <div className="w-full md:w-64">
+                        <Select
                             value={selectedPeriod}
-                            onChange={(e) => onPeriodChange(e.target.value)}
+                            onValueChange={onPeriodChange}
+                            disabled={periods.length === 0}
                         >
-                            <option value="" disabled>Seleccione periodo...</option>
-                            {periods.map((period) => (
-                                <option key={period} value={period}>{period}</option>
-                            ))}
-                            {periods.length === 0 && <option value="" disabled>No hay periodos disponibles</option>}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                            <span className="material-symbols-outlined text-xl">expand_more</span>
-                        </div>
+                            <SelectTrigger className="w-full text-sm">
+                                <SelectValue placeholder="Seleccione periodo..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {periods.map((period) => (
+                                    <SelectItem key={period} value={period}>{period}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </div>

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "edu360-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/usuario/Documents/GitHub/Edu360/edu360_web",
+      "port": 3000
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useParent } from '@/contexts/ParentContext';
 import { useTheme } from '@/hooks/useTheme';
 import { FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/theme';
@@ -17,6 +18,7 @@ import {
   getChildSchedule,
   subscribeToChildAttendance,
 } from '@/services/parentFirestore';
+import { calculateDeadline } from '@/services/justificationFirestore';
 import type { ChildAttendanceStatus, ParentChild, ScheduleEntry } from '@/types';
 
 export default function ParentAttendanceScreen() {
@@ -24,6 +26,8 @@ export default function ParentAttendanceScreen() {
   const { children, centerId, periodoId, loading } = useParent();
   const [selectedChildIndex, setSelectedChildIndex] = useState(0);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const today = new Date().toISOString().split('T')[0];
   const [attendanceStatuses, setAttendanceStatuses] = useState<ChildAttendanceStatus[]>([]);
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -333,6 +337,32 @@ export default function ParentAttendanceScreen() {
                     </Text>
                   </View>
                 )}
+
+                {/* Botón Justificar — solo en ausencias con plazo vigente */}
+                {item.status === 'ausente' && !item.teacherAbsence && (() => {
+                  const deadline = calculateDeadline(selectedDate);
+                  return deadline >= today;
+                })() && selectedChild && (
+                  <TouchableOpacity
+                    style={[styles.justifyBtn, { backgroundColor: colors.primaryLight }]}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(tabs-parent)/nueva-justificacion',
+                        params: {
+                          studentCedula: selectedChild.studentCedula,
+                          grupoId: selectedChild.grupoId,
+                          targetDate: selectedDate,
+                          scheduleId: item.scheduleEntry.id,
+                        },
+                      } as never)
+                    }
+                  >
+                    <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                    <Text style={[styles.justifyBtnText, { color: colors.primary }]}>
+                      Justificar
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ))}
@@ -428,6 +458,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   statusText: { fontSize: FontSize.xs, fontFamily: FontFamily.medium },
+
+  // Justify button
+  justifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+  },
+  justifyBtnText: { fontSize: FontSize.xs, fontFamily: FontFamily.medium },
 
   // Empty
   emptyContainer: { alignItems: 'center', paddingVertical: Spacing['4xl'] },

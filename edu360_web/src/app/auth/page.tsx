@@ -6,14 +6,13 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/auth/hooks/useAuth'
 import { getUserRole } from '@/app/auth/services/auth'
 import {
-  signInWithMicrosoft,
   signInWithGoogle,
   signInWithEmail,
 } from '@/app/auth/services/auth'
 import { auth } from '@/app/lib/firebase'
 import { signOut, getRedirectResult } from 'firebase/auth'
 
-import { GoogleButton, MicrosoftButton } from '@/app/auth/components/SocialButtons'
+import { GoogleButton } from '@/app/auth/components/SocialButtons'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 
@@ -23,7 +22,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loadingEmail, setLoadingEmail] = useState(false)
-  const [loadingMicrosoft, setLoadingMicrosoft] = useState(false)
   const [loadingGoogle, setLoadingGoogle] = useState(false)
 
   useEffect(() => {
@@ -46,7 +44,7 @@ export default function LoginPage() {
       // 2. Standard check
       if (user) {
         // If we are currently processing a login (Popup or Email), do NOT interfere.
-        if (loadingEmail || loadingGoogle || loadingMicrosoft) return
+        if (loadingEmail || loadingGoogle) return
 
         const role = await getUserRole(user.uid)
         if (!active) return
@@ -69,7 +67,7 @@ export default function LoginPage() {
     }
     void check()
     return () => { active = false }
-  }, [user, router, loadingEmail, loadingGoogle, loadingMicrosoft])
+  }, [user, router, loadingEmail, loadingGoogle])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,22 +81,6 @@ export default function LoginPage() {
       alert(message)
     } finally {
       setLoadingEmail(false)
-    }
-  }
-
-  const handleMicrosoftLogin = async () => {
-    setLoadingMicrosoft(true)
-    try {
-      const u = await signInWithMicrosoft()
-      if (u) {
-        const role = await getUserRole(u.uid)
-        router.push(role ? '/welcome' : '/auth/complete-profile')
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesión con Microsoft'
-      alert(message)
-    } finally {
-      setLoadingMicrosoft(false)
     }
   }
 
@@ -160,10 +142,6 @@ export default function LoginPage() {
           <GoogleButton
             onClick={handleGoogleLogin}
             loading={loadingGoogle}
-          />
-          <MicrosoftButton
-            onClick={handleMicrosoftLogin}
-            loading={loadingMicrosoft}
           />
         </div>
         <div className="mt-6 text-center">

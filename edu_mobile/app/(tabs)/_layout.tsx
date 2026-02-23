@@ -7,7 +7,7 @@ import { Colors, FontFamily, Shadows } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function TabLayout() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, needsMepEmail } = useAuth();
   const { colors } = useTheme();
 
   if (loading) {
@@ -20,6 +20,10 @@ export default function TabLayout() {
 
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
+  }
+
+  if (needsMepEmail) {
+    return <Redirect href="/mep-email" />;
   }
 
   return (

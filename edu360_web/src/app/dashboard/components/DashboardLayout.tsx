@@ -37,6 +37,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: "OPERACIONES",
     items: [
       { label: "Asistencia", icon: "event_available", href: "/dashboard/attendance" },
+      { label: "Mis Clases", icon: "menu_book", href: "/dashboard/my-classes", requiredRoles: ["professor"] },
       { label: "Reportes", icon: "monitoring", href: "#", requiredRoles: ["admin"] },
       { label: "Horarios", icon: "calendar_month", href: "/dashboard/schedules" },
     ],

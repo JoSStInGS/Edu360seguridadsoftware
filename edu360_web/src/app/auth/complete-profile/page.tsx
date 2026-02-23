@@ -7,11 +7,11 @@ import { db } from '@/app/lib/firebase'
 import { doc, setDoc } from 'firebase/firestore'
 import { auth } from '@/app/lib/firebase'
 import { signOut } from 'firebase/auth'
-import { GoogleButton, MicrosoftButton } from '@/app/auth/components/SocialButtons'
+import { GoogleButton } from '@/app/auth/components/SocialButtons'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 import { SearchableSelect } from '@/app/components/SearchableSelect'
-import { registerWithEmail, signInWithGoogle, signInWithMicrosoft } from '@/app/auth/services/auth'
+import { registerWithEmail, signInWithGoogle, isMepEmail } from '@/app/auth/services/auth'
 
 export default function CompleteProfilePage() {
   const router = useRouter()
@@ -163,7 +163,9 @@ export default function CompleteProfilePage() {
       const u = await registerWithEmail(email, password)
 
       // Update profile with role and center
+      const roles = [role!]
       const profileData: Record<string, unknown> = {
+        roles,
         role: role,
         centerId: selectedCenterId,
         centerName: selectedCenterName,
@@ -172,9 +174,18 @@ export default function CompleteProfilePage() {
       if (profesorId) {
         profileData.profesorId = profesorId
       }
+      // If the registration email is a MEP email, save it automatically
+      if (isMepEmail(email, roles as ('admin' | 'professor' | 'parent')[])) {
+        profileData.mepEmail = email.toLowerCase()
+      }
       await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
 
-      router.push('/welcome')
+      // If MEP email not auto-saved, redirect to capture page
+      if (!profileData.mepEmail) {
+        router.push('/auth/mep-email')
+      } else {
+        router.push('/welcome')
+      }
     } catch (error) {
       console.error("Registration error:", error)
       const message = error instanceof Error ? error.message : "Error al registrarse"
@@ -184,17 +195,16 @@ export default function CompleteProfilePage() {
     }
   }
 
-  const handleSocialRegister = async (provider: 'google' | 'microsoft') => {
+  const handleSocialRegister = async () => {
     setRegisterLoading(true)
     setValidationError(null)
     try {
-      const u = provider === 'google'
-        ? await signInWithGoogle()
-        : await signInWithMicrosoft()
+      const u = await signInWithGoogle()
 
       if (u) {
         // Update profile with role and center
         const profileData: Record<string, unknown> = {
+          roles: [role],
           role: role,
           centerId: selectedCenterId,
           centerName: selectedCenterName,
@@ -205,11 +215,12 @@ export default function CompleteProfilePage() {
         }
         await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
 
-        router.push('/welcome')
+        // Google accounts are never MEP emails, always redirect to capture page
+        router.push('/auth/mep-email')
       }
     } catch (error) {
       console.error("Social registration error:", error)
-      setValidationError("Error al registrarse con red social")
+      setValidationError("Error al registrarse con Google")
     } finally {
       setRegisterLoading(false)
     }
@@ -293,12 +304,7 @@ export default function CompleteProfilePage() {
                   <div className="flex flex-col gap-4">
                     <GoogleButton
                       text="Continuar con Google"
-                      onClick={() => handleSocialRegister('google')}
-                      loading={registerLoading}
-                    />
-                    <MicrosoftButton
-                      text="Continuar con Microsoft"
-                      onClick={() => handleSocialRegister('microsoft')}
+                      onClick={() => handleSocialRegister()}
                       loading={registerLoading}
                     />
                   </div>

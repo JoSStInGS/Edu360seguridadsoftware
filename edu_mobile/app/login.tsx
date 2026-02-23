@@ -20,7 +20,7 @@ import { useTheme } from '@/hooks/useTheme';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { isAuthenticated, userData } = useAuth();
+  const { isAuthenticated, userData, needsMepEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +30,9 @@ export default function LoginScreen() {
   // Redirect when AuthContext confirms authentication
   useEffect(() => {
     if (isAuthenticated && userData?.roles?.length) {
-      if (userData.roles.includes('professor')) {
+      if (needsMepEmail) {
+        router.replace('/mep-email');
+      } else if (userData.roles.includes('professor')) {
         router.replace('/(tabs)');
       } else if (userData.roles.includes('parent')) {
         router.replace('/(tabs-parent)');
@@ -38,7 +40,7 @@ export default function LoginScreen() {
         router.replace('/(tabs)');
       }
     }
-  }, [isAuthenticated, userData]);
+  }, [isAuthenticated, userData, needsMepEmail]);
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -238,25 +240,6 @@ export default function LoginScreen() {
                 ]}
               >
                 Google
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.socialButton,
-                { borderColor: colors.border },
-              ]}
-              onPress={() => handleSocialLogin('Microsoft')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="logo-microsoft" size={20} color="#00A4EF" />
-              <Text
-                style={[
-                  styles.socialButtonText,
-                  { color: colors.text },
-                ]}
-              >
-                Microsoft
               </Text>
             </TouchableOpacity>
           </View>

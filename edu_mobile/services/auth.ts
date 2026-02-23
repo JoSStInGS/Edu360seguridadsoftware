@@ -5,7 +5,7 @@ import {
   signOut,
   User,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 /**
@@ -117,4 +117,28 @@ export async function getUserData(
  */
 export async function logout(): Promise<void> {
   await signOut(auth);
+}
+
+/**
+ * Devuelve el dominio MEP esperado segun los roles.
+ */
+export function getMepDomain(roles: string[]): string {
+  if (roles.includes('parent')) return '@est.mep.go.cr';
+  return '@mep.go.cr';
+}
+
+/**
+ * Devuelve true si el correo coincide con el dominio MEP para los roles dados.
+ */
+export function isMepEmail(email: string, roles: string[]): boolean {
+  const domain = getMepDomain(roles);
+  return email.toLowerCase().endsWith(domain);
+}
+
+/**
+ * Guarda el correo MEP del usuario en Firestore.
+ */
+export async function saveMepEmail(uid: string, mepEmail: string): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { mepEmail: mepEmail.toLowerCase() });
 }

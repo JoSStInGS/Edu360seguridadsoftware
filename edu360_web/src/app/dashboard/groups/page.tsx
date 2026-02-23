@@ -5,6 +5,7 @@ import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Group = {
   id: string;
@@ -214,19 +215,20 @@ export default function GroupsPage() {
                 <label className="text-sm font-medium text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
                   Grupo:
                 </label>
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-                >
-                  <option value="all">Todos los grupos</option>
-                  <option value="unassigned">Sin grupo asignado</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>
-                      {group.nombre}
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <SelectTrigger className="text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los grupos</SelectItem>
+                    <SelectItem value="unassigned">Sin grupo asignado</SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

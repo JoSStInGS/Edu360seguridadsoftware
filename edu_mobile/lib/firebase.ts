@@ -2,10 +2,10 @@ import { initializeApp } from 'firebase/app';
 import {
   initializeAuth,
   GoogleAuthProvider,
-  OAuthProvider,
   // @ts-ignore - getReactNativePersistence exists in firebase/auth/react-native
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 //@ts-ignore
 import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,13 +27,8 @@ export const auth = initializeAuth(app, {
 });
 
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export const googleProvider = new GoogleAuthProvider();
-
-export const microsoftProvider = new OAuthProvider('microsoft.com');
-microsoftProvider.addScope('User.Read');
-microsoftProvider.setCustomParameters({
-  prompt: 'select_account',
-});
 
 export default app;

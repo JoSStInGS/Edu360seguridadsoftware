@@ -6,6 +6,7 @@ import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { useActiveRoleStore } from "@/app/stores/useActiveRoleStore";
 import ScheduleStudentPanel from "./components/ScheduleStudentPanel";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Teacher {
     id: string;
@@ -350,64 +351,67 @@ export default function SchedulesPage() {
 
                     {/* Selector (Teacher or Group) */}
                     <div className="flex flex-wrap items-center gap-3">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="entity-select">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
                             {viewMode === "teachers" ? "Profesor:" : "Grupo:"}
                         </label>
-                        <div className="relative min-w-[240px]">
+                        <div className="min-w-[240px]">
                             {viewMode === "teachers" ? (
-                                <select
-                                    id="entity-select"
-                                    disabled={isLoadingSchedule}
-                                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                <Select
                                     value={selectedTeacherId}
-                                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                                >
-                                    {teachers.map(t => (
-                                        <option key={t.id} value={t.id}>{t.nombre}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <select
-                                    id="entity-select"
+                                    onValueChange={setSelectedTeacherId}
                                     disabled={isLoadingSchedule}
-                                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    value={selectedGroupId}
-                                    onChange={(e) => setSelectedGroupId(e.target.value)}
                                 >
-                                    {filteredGroups.map(g => (
-                                        <option key={g.id} value={g.id}>
-                                            {g.nombre} {g.hasDivisions && "(con divisiones)"}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <SelectTrigger className="w-full text-sm">
+                                        <SelectValue placeholder="Seleccionar profesor..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {teachers.map((t) => (
+                                            <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Select
+                                    value={selectedGroupId}
+                                    onValueChange={setSelectedGroupId}
+                                    disabled={isLoadingSchedule}
+                                >
+                                    <SelectTrigger className="w-full text-sm">
+                                        <SelectValue placeholder="Seleccionar grupo..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {filteredGroups.map((g) => (
+                                            <SelectItem key={g.id} value={g.id}>
+                                                {g.nombre}{g.hasDivisions ? " (con divisiones)" : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             )}
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                            </div>
                         </div>
 
                         {/* Division selector (only for groups with divisions) */}
                         {viewMode === "groups" && selectedGroupHasDivisions && (
                             <>
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap" htmlFor="division-select">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
                                     División:
                                 </label>
-                                <div className="relative min-w-[180px]">
-                                    <select
-                                        id="division-select"
-                                        disabled={isLoadingSchedule}
-                                        className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2d2d2d] py-2 pl-3 pr-10 text-base focus:border-[#153593] focus:outline-none focus:ring-[#153593] sm:text-sm dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                <div className="min-w-[180px]">
+                                    <Select
                                         value={selectedDivisionId}
-                                        onChange={(e) => setSelectedDivisionId(e.target.value)}
+                                        onValueChange={setSelectedDivisionId}
+                                        disabled={isLoadingSchedule}
                                     >
-                                        <option value="all">Todas las divisiones</option>
-                                        {selectedGroupDivisions.map(d => (
-                                            <option key={d.id} value={d.id}>{d.nombre}</option>
-                                        ))}
-                                    </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                        <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                                    </div>
+                                        <SelectTrigger className="w-full text-sm">
+                                            <SelectValue placeholder="División..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas las divisiones</SelectItem>
+                                            {selectedGroupDivisions.map((d) => (
+                                                <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </>
                         )}

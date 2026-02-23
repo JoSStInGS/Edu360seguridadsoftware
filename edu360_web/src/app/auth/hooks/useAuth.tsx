@@ -10,6 +10,7 @@ export function useAuth() {
     const [roles, setRoles] = useState<UserRole[]>([]);
     const [centerId, setCenterId] = useState<string | null>(null);
     const [profesorId, setProfesorId] = useState<string | null>(null);
+    const [mepEmail, setMepEmail] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -22,23 +23,27 @@ export function useAuth() {
                         setRoles(profile.roles);
                         setCenterId(profile.centerId);
                         setProfesorId(profile.profesorId);
+                        setMepEmail(profile.mepEmail);
                         useActiveRoleStore.getState().initializeRoles(profile.roles);
                     } else {
                         setRoles([]);
                         setCenterId(null);
                         setProfesorId(null);
+                        setMepEmail(null);
                         useActiveRoleStore.getState().initializeRoles([]);
                     }
                 } catch {
                     setRoles([]);
                     setCenterId(null);
                     setProfesorId(null);
+                    setMepEmail(null);
                     useActiveRoleStore.getState().initializeRoles([]);
                 }
             } else {
                 setRoles([]);
                 setCenterId(null);
                 setProfesorId(null);
+                setMepEmail(null);
                 useActiveRoleStore.getState().initializeRoles([]);
             }
             setLoading(false);
@@ -47,5 +52,5 @@ export function useAuth() {
         return () => unsub();
     }, []);
 
-    return { user, roles, centerId, profesorId, loading };
+    return { user, roles, centerId, profesorId, mepEmail, loading };
 }

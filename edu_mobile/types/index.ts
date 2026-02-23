@@ -95,3 +95,53 @@ export interface Comunicado {
   createdAt: string;
   readBy: string[];
 }
+
+export interface JustificationScheduleDetail {
+  scheduleId: string;
+  asignaturaNombre: string;
+  horaInicio: string;
+  horaFin: string;
+  profesorId: string;
+  profesorNombre: string;
+}
+
+export interface JustificationDecision {
+  scheduleId: string;
+  profesorId: string;
+  profesorNombre: string;
+  asignaturaNombre: string;
+  status: 'pending' | 'approved' | 'rejected';
+  profesorComment?: string;
+  reviewedAt?: string;
+}
+
+export interface AbsenceJustification {
+  id: string;
+  // Estudiante
+  studentCedula: string;
+  studentName: string;
+  grupoId: string;
+  grupoNombre: string;
+  // Padre
+  parentUid: string;
+  parentName: string;
+  // Tipo y fecha
+  type: 'preventiva' | 'posterior';
+  targetDate: string; // "YYYY-MM-DD"
+  // Alcance
+  scope: 'all_day' | 'specific';
+  scheduleIds: string[];
+  scheduleDetails: JustificationScheduleDetail[];
+  // Comprobante
+  reason: string;
+  attachmentUrl?: string;
+  attachmentType?: 'image' | 'pdf';
+  // Estado
+  status: 'pending' | 'approved' | 'rejected' | 'partial' | 'expired';
+  pendingProfessorIds: string[];
+  decisions: JustificationDecision[];
+  // Fechas
+  deadlineDate: string;
+  createdAt: string;
+  updatedAt: string;
+}

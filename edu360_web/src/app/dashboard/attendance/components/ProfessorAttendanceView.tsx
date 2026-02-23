@@ -202,6 +202,7 @@ export default function ProfessorAttendanceView() {
                     grupoNombre: selectedEntry.grupoNombre,
                     profesorId,
                     date: getTodayDate(),
+                    dia: selectedEntry.dia,
                     records,
                     horaInicio: selectedEntry.horaInicio,
                 }),

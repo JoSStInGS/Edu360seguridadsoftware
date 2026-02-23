@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TeacherRow } from "../page";
 import { useAuth } from "@/app/auth/hooks/useAuth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TeacherAbsenceModalProps {
     isOpen: boolean;
@@ -182,18 +183,22 @@ export default function TeacherAbsenceModal({
                     <label className="mb-1.5 block text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                         Profesor sustituto <span className="text-[var(--muted-light)] dark:text-[var(--muted-dark)]">(opcional)</span>
                     </label>
-                    <select
-                        value={substituteId}
-                        onChange={(e) => setSubstituteId(e.target.value)}
-                        className="w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+                    <Select
+                        value={substituteId === "" ? "__none__" : substituteId}
+                        onValueChange={(v) => setSubstituteId(v === "__none__" ? "" : v)}
                     >
-                        <option value="">Sin sustituto</option>
-                        {substituteOptions.map((t) => (
-                            <option key={t.id} value={t.id}>
-                                {t.fullName}
-                            </option>
-                        ))}
-                    </select>
+                        <SelectTrigger className="w-full text-sm">
+                            <SelectValue placeholder="Sin sustituto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__none__">Sin sustituto</SelectItem>
+                            {substituteOptions.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                    {t.fullName}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 {/* Error */}

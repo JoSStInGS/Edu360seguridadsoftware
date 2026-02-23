@@ -3,7 +3,6 @@ import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
-  OAuthProvider,
   GoogleAuthProvider,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -64,33 +63,9 @@ export const storage = bucketUrl ? getStorage(app, bucketUrl) : getStorage(app);
 void setPersistence(auth, browserLocalPersistence);
 
 /**
- * Microsoft OAuth provider for authentication (Outlook, Office 365, Azure AD).
- * @type {import("firebase/auth").OAuthProvider}
- */
-export const microsoftProvider = new OAuthProvider("microsoft.com");
-
-/**
  * Google OAuth provider for authentication (Gmail accounts).
  */
 export const googleProvider = new GoogleAuthProvider();
-
-/**
- * Adds additional permissions to the Microsoft provider.
- * Here, it requests basic profile access (User.Read).
- */
-microsoftProvider.addScope("User.Read");
-
-/**
- * Custom parameters for the authentication flow.
- * - `prompt: "select_account"` forces the user to select an account each time.
- * - Optional parameters like `login_hint` or `domain_hint` can be used
- *   to restrict login to a specific domain (e.g., @mep.go.cr).
- */
-microsoftProvider.setCustomParameters({
-  prompt: "select_account",
-  // login_hint: "usuario@mep.go.cr",
-  // domain_hint: "organizations",
-});
 
 /**
  * Exports the initialized Firebase app for use in other parts of the project.

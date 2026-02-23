@@ -7,7 +7,7 @@ import { FontFamily, Shadows } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function ParentTabLayout() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, needsMepEmail } = useAuth();
   const { colors } = useTheme();
 
   if (loading) {
@@ -20,6 +20,10 @@ export default function ParentTabLayout() {
 
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
+  }
+
+  if (needsMepEmail) {
+    return <Redirect href="/mep-email" />;
   }
 
   return (
@@ -63,6 +67,15 @@ export default function ParentTabLayout() {
           }}
         />
         <Tabs.Screen
+          name="justificaciones"
+          options={{
+            title: 'Justificaciones',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="document-text" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="comunicados"
           options={{
             title: 'Comunicados',
@@ -71,14 +84,15 @@ export default function ParentTabLayout() {
             ),
           }}
         />
+        {/* Perfil se accede desde el avatar en el home, no como tab */}
         <Tabs.Screen
           name="profile"
-          options={{
-            title: 'Perfil',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person" size={size} color={color} />
-            ),
-          }}
+          options={{ href: null }}
+        />
+        {/* Formulario de nueva justificación — push desde justificaciones o asistencia */}
+        <Tabs.Screen
+          name="nueva-justificacion"
+          options={{ href: null }}
         />
       </Tabs>
     </ParentProvider>

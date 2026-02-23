@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { registerWithEmail, createUserProfile } from '@/services/auth';
+import { registerWithEmail, createUserProfile, isMepEmail } from '@/services/auth';
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -177,6 +177,7 @@ export default function RegisterScreen() {
         centerId: string;
         centerName: string;
         profesorId?: string;
+        mepEmail?: string;
       } = {
         email: email.trim(),
         displayName: displayName.trim(),
@@ -187,6 +188,11 @@ export default function RegisterScreen() {
 
       if (validatedRole === 'professor' && profesorId) {
         profileData.profesorId = profesorId;
+      }
+
+      // If the registration email is a MEP email, save it automatically
+      if (isMepEmail(email.trim(), [validatedRole!])) {
+        profileData.mepEmail = email.trim().toLowerCase();
       }
 
       await createUserProfile(user.uid, profileData);
@@ -218,8 +224,10 @@ export default function RegisterScreen() {
         await updateDoc(profRef, { email: email.trim() });
       }
 
-      // Navigate based on role - AuthContext will pick up the new user
-      if (validatedRole === 'parent') {
+      // If MEP email was not auto-saved, redirect to the capture screen
+      if (!profileData.mepEmail) {
+        router.replace('/mep-email');
+      } else if (validatedRole === 'parent') {
         router.replace('/(tabs-parent)');
       } else {
         router.replace('/(tabs)');

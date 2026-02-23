@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParent } from '@/contexts/ParentContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -124,12 +125,31 @@ export default function ParentHomeScreen() {
     >
       {/* Header */}
       <View style={styles.headerSection}>
-        <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-          {getGreeting()},
-        </Text>
-        <Text style={[styles.name, { color: colors.text }]}>
-          {getFirstName()} 👋
-        </Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerText}>
+            <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+              {getGreeting()},
+            </Text>
+            <Text style={[styles.name, { color: colors.text }]}>
+              {getFirstName()} 👋
+            </Text>
+          </View>
+          {/* Avatar → navega a perfil */}
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs-parent)/profile' as never)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.headerAvatar, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.headerAvatarText, { color: colors.primary }]}>
+                {(userData?.displayName || 'U')
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((n: string) => n.charAt(0).toUpperCase())
+                  .join('')}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
         <Text style={[styles.dateText, { color: colors.muted }]}>
           {new Date().toLocaleDateString('es-CR', {
             weekday: 'long',
@@ -312,6 +332,17 @@ const styles = StyleSheet.create({
 
   // Header
   headerSection: { marginBottom: Spacing['2xl'] },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headerText: { flex: 1 },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.md,
+  },
+  headerAvatarText: { fontSize: FontSize.base, fontFamily: FontFamily.bold },
   greeting: { fontSize: FontSize.base, fontFamily: FontFamily.regular },
   name: { fontSize: FontSize['2xl'], fontFamily: FontFamily.bold, marginTop: Spacing.xs },
   dateText: { fontSize: FontSize.sm, fontFamily: FontFamily.regular, marginTop: Spacing.xs },

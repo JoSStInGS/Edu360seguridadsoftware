@@ -5,10 +5,12 @@ import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { db } from "@/app/lib/firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AttendanceRecord {
     id: string;
     date: string;
+    dia?: string;
     grupoId: string;
     grupoNombre: string;
     profesorId: string;
@@ -32,7 +34,7 @@ export default function AdminAttendanceView() {
     const [grupos, setGrupos] = useState<FilterOption[]>([]);
 
     // Filters
-    const [filterDate, setFilterDate] = useState(getTodayDateString());
+    const [filterDia, setFilterDia] = useState(getTodayDayName());
     const [filterProfesor, setFilterProfesor] = useState("");
     const [filterGrupo, setFilterGrupo] = useState("");
 
@@ -89,7 +91,7 @@ export default function AdminAttendanceView() {
         setLoading(true);
         try {
             const params = new URLSearchParams({ period: selectedPeriod });
-            if (filterDate) params.set("date", filterDate);
+            if (filterDia) params.set("dia", filterDia);
             if (filterProfesor) params.set("profesorId", filterProfesor);
             if (filterGrupo) params.set("grupoId", filterGrupo);
 
@@ -105,7 +107,7 @@ export default function AdminAttendanceView() {
         } finally {
             setLoading(false);
         }
-    }, [selectedPeriod, filterDate, filterProfesor, filterGrupo, getToken]);
+    }, [selectedPeriod, filterDia, filterProfesor, filterGrupo, getToken]);
 
     useEffect(() => {
         fetchRecords();
@@ -127,17 +129,25 @@ export default function AdminAttendanceView() {
             {/* Filters */}
             <div className="mb-6 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    {/* Date */}
+                    {/* Día */}
                     <div>
                         <label className="mb-1 block text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                            Fecha
+                            Día
                         </label>
-                        <input
-                            type="date"
-                            value={filterDate}
-                            onChange={(e) => setFilterDate(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-                        />
+                        <Select
+                            value={filterDia === "" ? "__all__" : filterDia}
+                            onValueChange={(v) => setFilterDia(v === "__all__" ? "" : v)}
+                        >
+                            <SelectTrigger className="w-full text-sm">
+                                <SelectValue placeholder="Todos los días" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">Todos los días</SelectItem>
+                                {DAYS_OF_WEEK.map((day) => (
+                                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Profesor */}
@@ -145,18 +155,22 @@ export default function AdminAttendanceView() {
                         <label className="mb-1 block text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                             Profesor
                         </label>
-                        <select
-                            value={filterProfesor}
-                            onChange={(e) => setFilterProfesor(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+                        <Select
+                            value={filterProfesor === "" ? "__all__" : filterProfesor}
+                            onValueChange={(v) => setFilterProfesor(v === "__all__" ? "" : v)}
                         >
-                            <option value="">Todos los profesores</option>
-                            {profesores.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger className="w-full text-sm">
+                                <SelectValue placeholder="Todos los profesores" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">Todos los profesores</SelectItem>
+                                {profesores.map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                        {p.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Grupo */}
@@ -164,18 +178,22 @@ export default function AdminAttendanceView() {
                         <label className="mb-1 block text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                             Grupo
                         </label>
-                        <select
-                            value={filterGrupo}
-                            onChange={(e) => setFilterGrupo(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+                        <Select
+                            value={filterGrupo === "" ? "__all__" : filterGrupo}
+                            onValueChange={(v) => setFilterGrupo(v === "__all__" ? "" : v)}
                         >
-                            <option value="">Todos los grupos</option>
-                            {grupos.map((g) => (
-                                <option key={g.id} value={g.id}>
-                                    {g.name}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger className="w-full text-sm">
+                                <SelectValue placeholder="Todos los grupos" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">Todos los grupos</SelectItem>
+                                {grupos.map((g) => (
+                                    <SelectItem key={g.id} value={g.id}>
+                                        {g.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </div>
@@ -218,7 +236,10 @@ export default function AdminAttendanceView() {
                                     return (
                                         <tr key={record.id} className="border-b border-[var(--border-light)] last:border-0 dark:border-[var(--border-dark)]">
                                             <td className="px-6 py-4">
-                                                {formatDateDisplay(record.date)}
+                                                <span className="font-medium">{record.dia || getDayNameFromDate(record.date)}</span>
+                                                <span className="ml-1 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
+                                                    {formatDateDisplay(record.date)}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 {getProfesorName(record.profesorId)}
@@ -261,7 +282,7 @@ export default function AdminAttendanceView() {
                         return (
                             <div className="border-t border-[var(--border-light)] bg-[rgba(15,23,42,0.02)] p-6 dark:border-[var(--border-dark)] dark:bg-[rgba(255,255,255,0.02)]">
                                 <h4 className="mb-3 text-sm font-semibold">
-                                    Detalle: {record.grupoNombre} - {formatDateDisplay(record.date)}
+                                    Detalle: {record.grupoNombre} — {record.dia || getDayNameFromDate(record.date)} {formatDateDisplay(record.date)}
                                 </h4>
                                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
                                     {record.records.map((r) => (
@@ -302,12 +323,33 @@ export default function AdminAttendanceView() {
     );
 }
 
-function getTodayDateString(): string {
+const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+
+const DAY_MAP: Record<number, string> = {
+    0: "Domingo",
+    1: "Lunes",
+    2: "Martes",
+    3: "Miércoles",
+    4: "Jueves",
+    5: "Viernes",
+    6: "Sábado",
+};
+
+function getTodayDayName(): string {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    const dayName = DAY_MAP[now.getDay()];
+    // Si hoy es fin de semana, no preseleccionar ningún día
+    return DAYS_OF_WEEK.includes(dayName) ? dayName : "";
+}
+
+function getDayNameFromDate(dateStr: string): string {
+    try {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        return DAY_MAP[date.getDay()] || "";
+    } catch {
+        return "";
+    }
 }
 
 function formatDateDisplay(dateStr: string): string {

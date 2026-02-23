@@ -57,6 +57,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const periodId = searchParams.get("period");
         const date = searchParams.get("date");
+        const dia = searchParams.get("dia");
         const profesorId = searchParams.get("profesorId");
         const grupoId = searchParams.get("grupoId");
         const scheduleId = searchParams.get("scheduleId");
@@ -71,9 +72,9 @@ export async function GET(request: Request) {
             .collection("attendance");
 
         // Helper: normalize old `present: boolean` records to `status`
-        function normalizeAttendanceRecords(data: Record<string, any>) {
+        function normalizeAttendanceRecords(data: Record<string, unknown>) {
             if (Array.isArray(data.records)) {
-                data.records = data.records.map((r: any) => {
+                data.records = data.records.map((r: Record<string, unknown>) => {
                     if (!('status' in r) && 'present' in r) {
                         return { ...r, status: r.present ? 'presente' : 'ausente' };
                     }
@@ -99,6 +100,9 @@ export async function GET(request: Request) {
         if (date) {
             query = query.where("date", "==", date);
         }
+        if (dia) {
+            query = query.where("dia", "==", dia);
+        }
         if (profesorId) {
             query = query.where("profesorId", "==", profesorId);
         }
@@ -106,11 +110,16 @@ export async function GET(request: Request) {
             query = query.where("grupoId", "==", grupoId);
         }
 
-        const snapshot = await query.orderBy("date", "desc").limit(100).get();
-        const records = snapshot.docs.map((doc) => normalizeAttendanceRecords({
-            id: doc.id,
-            ...doc.data(),
-        }));
+        // Sin orderBy en Firestore para evitar índices compuestos con cada combinación de filtros.
+        // Se ordena en memoria por fecha descendente después de obtener los resultados.
+        const snapshot = await query.limit(100).get();
+        const records = snapshot.docs
+            .map((doc) => normalizeAttendanceRecords({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => {
+                const dateA = (a.date as string) ?? "";
+                const dateB = (b.date as string) ?? "";
+                return dateB.localeCompare(dateA);
+            });
 
         return NextResponse.json({ records });
     } catch (error) {
@@ -134,7 +143,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { periodId, scheduleId, grupoId, grupoNombre, profesorId, date, records, horaInicio } = body;
+        const { periodId, scheduleId, grupoId, grupoNombre, profesorId, date, dia, records, horaInicio } = body;
 
         if (!periodId || !scheduleId || !grupoId || !profesorId || !date || !records) {
             return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
@@ -167,6 +176,7 @@ export async function POST(request: Request) {
             grupoNombre: grupoNombre || "",
             profesorId,
             date,
+            dia: dia || "",
             records,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

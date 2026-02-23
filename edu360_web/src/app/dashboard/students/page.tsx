@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/auth/hooks/useAuth";
-import CustomSelect from "@/app/components/CustomSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 
 type Student = {
@@ -244,15 +244,14 @@ export default function StudentsPage() {
               <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                 {label}
               </label>
-              <CustomSelect
-                availableKeys={["Todos"]}
-                value="Todos"
-                onChange={() => { }}
-                className="mt-1"
-                triggerClassName="w-full h-10 rounded-lg !border-[var(--border-light)] bg-[var(--card-light)] px-3 py-2 !text-sm text-[var(--foreground-light)] focus:!border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:!border-[var(--border-dark)] dark:bg-[var(--card-dark)] dark:text-[var(--foreground-dark)]"
-                dropdownClassName="bg-[var(--card-light)] dark:bg-[var(--card-dark)] border-[var(--border-light)] dark:border-[var(--border-dark)]"
-                optionClassName="text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] hover:bg-[rgba(15,23,42,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]"
-              />
+              <Select value="Todos" onValueChange={() => {}}>
+                <SelectTrigger className="mt-1 w-full h-10 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           ))}
 
