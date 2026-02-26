@@ -5,7 +5,9 @@
       "Bash(npx expo install:*)",
       "Bash(del \"C:\\\\Users\\\\Usuario\\\\Documents\\\\Edu360\\\\edu_mobile\\\\app\\\\\\(tabs\\)\\\\explore.tsx\")",
       "Bash(del \"C:\\\\Users\\\\Usuario\\\\Documents\\\\Edu360\\\\edu_mobile\\\\app\\\\modal.tsx\")",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ls -la /Users/usuario/Documents/GitHub/Edu360/edu_mobile/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(ls -la /Users/usuario/Documents/GitHub/Edu360/edu_mobile/app/\\\\\\(tabs-parent\\\\\\)/)"
     ]
   }
 }
