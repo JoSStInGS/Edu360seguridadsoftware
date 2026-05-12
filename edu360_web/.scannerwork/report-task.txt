@@ -1,0 +1,6 @@
+projectKey=mi_nextjs_app
+serverUrl=http://127.0.0.1:9000
+serverVersion=26.4.0.121862
+dashboardUrl=http://127.0.0.1:9000/dashboard?id=mi_nextjs_app
+ceTaskId=af12d33c-7b81-4f4e-b6f0-3be4da29fc37
+ceTaskUrl=http://127.0.0.1:9000/api/ce/task?id=af12d33c-7b81-4f4e-b6f0-3be4da29fc37
