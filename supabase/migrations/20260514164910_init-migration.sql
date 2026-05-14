@@ -1,0 +1,2 @@
+-- Empty migration already registered in the remote Supabase project.
+-- Kept intentionally so local migration history matches production.
