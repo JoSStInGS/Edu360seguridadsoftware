@@ -12,6 +12,14 @@ La secuencia combina:
 Antes de empezar cualquier bloque, revisar tambien
 `planes/PLAN_MIGRACION_SUPABASE.md`.
 
+## Decision vigente de alcance
+- La implementacion se ejecuta web-first.
+- No se usa `.env` global compartido; cada aplicacion mantiene sus propias
+  variables.
+- La app movil queda diferida hasta el final porque se reconstruira con otra
+  tecnologia. Las tareas moviles de cada HU se conservan como alcance futuro,
+  pero no bloquean el avance web.
+
 ## Regla general de ejecucion
 Para cada historia:
 1. Abrir su plan en `planes-por-historia/`.
@@ -33,7 +41,8 @@ dos veces.
    - tipos TypeScript generados o planificados.
 2. Usar como referencia complementaria:
    - [PLAN_PADRES.md](/Users/greivin/Documents/GitHub/Edu360/PLAN_PADRES.md)
-   - [edu_mobile/PLAN.md](/Users/greivin/Documents/GitHub/Edu360/edu_mobile/PLAN.md)
+   - Los planes moviles solo como referencia historica; no se implementan en
+     esta fase.
 
 ## Bloque 1 — Identidad, sesion y administracion base
 Objetivo: crear la columna vertebral del sistema y de la migracion.
@@ -43,7 +52,8 @@ Objetivo: crear la columna vertebral del sistema y de la migracion.
 3. `HU-01` — Registro con codigo de activacion.
 4. `HU-02` — Inicio de sesion con dominios institucionales.
 5. `HU-15` — Recuperacion y restablecimiento de contrasena.
-6. `HU-34` — Inicio de sesion con Google OAuth en web y movil.
+6. `HU-34` — Inicio de sesion con Google OAuth en web. La parte movil queda
+   diferida.
 7. `HU-25` — Gestion de secciones, materias, horarios y calendario escolar.
 
 ### Por que este orden
@@ -145,7 +155,7 @@ Migracion Supabase
   -> HU-01
   -> HU-02
   -> HU-15
-  -> HU-34
+  -> HU-34 web
   -> HU-25
   -> HU-03
   -> HU-04
@@ -182,3 +192,15 @@ saltes al siguiente hasta que:
 - los criterios de aceptacion del bloque actual esten cubiertos,
 - las pruebas de regresion relevantes pasen,
 - y cualquier cambio transversal a Supabase quede documentado.
+
+## Bloque final diferido — Nueva app movil
+Objetivo: implementar la experiencia movil cuando este definida la nueva
+tecnologia.
+
+Historias con alcance movil a retomar:
+- HU-02, HU-03, HU-04, HU-05, HU-06, HU-07, HU-15, HU-16, HU-17, HU-18,
+  HU-19, HU-20, HU-21, HU-22, HU-23, HU-28, HU-32, HU-33 y HU-34.
+
+La app movil nueva debe consumir los contratos Supabase/PostgreSQL ya
+estabilizados por la implementacion web, no reabrir decisiones de modelo salvo
+que aparezca una brecha real.

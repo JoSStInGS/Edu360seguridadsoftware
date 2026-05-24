@@ -14,8 +14,9 @@ export default function WelcomePage() {
     useEffect(() => {
         if (!loading) {
             if (user) {
-                if (!mepEmail) {
-                    // User has no MEP email registered yet
+                if (roles.length === 0) {
+                    router.replace('/auth/complete-profile');
+                } else if (!mepEmail) {
                     router.replace('/auth/mep-email');
                 } else if (canAccessWeb(roles)) {
                     router.replace('/dashboard');

@@ -220,8 +220,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           Acceso no disponible
         </h2>
         <p className="max-w-md text-center text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-          La plataforma web esta disponible solo para administradores y profesores.
-          Si eres encargado legal, utiliza la aplicacion movil.
+          La plataforma web está disponible solo para administradores y profesores.
+          Tu rol actual no tiene acceso a este panel.
         </p>
         <button
           onClick={handleLogout}

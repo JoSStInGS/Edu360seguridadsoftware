@@ -5,13 +5,11 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/auth/hooks/useAuth'
 import { db } from '@/app/lib/firebase'
 import { doc, setDoc } from 'firebase/firestore'
-import { auth } from '@/app/lib/firebase'
-import { signOut } from 'firebase/auth'
 import { GoogleButton } from '@/app/auth/components/SocialButtons'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 import { SearchableSelect } from '@/app/components/SearchableSelect'
-import { registerWithEmail, signInWithGoogle, isMepEmail } from '@/app/auth/services/auth'
+import { registerWithEmail, signInWithGoogle, isMepEmail, logout } from '@/app/auth/services/auth'
 
 export default function CompleteProfilePage() {
   const router = useRouter()
@@ -228,15 +226,9 @@ export default function CompleteProfilePage() {
 
   const handleBackToLogin = async () => {
     try {
-      if (user) {
-        // Try to delete the user since they are cancelling the registration process
-        // This cleans up the "half-created" user in Firebase Auth
-        await user.delete()
-      }
+      if (user) await logout()
     } catch (error) {
       console.error("Error deleting user:", error)
-      // If delete fails (e.g. requires re-auth), ensure we at least sign out
-      await signOut(auth)
     }
     router.push('/auth')
   }

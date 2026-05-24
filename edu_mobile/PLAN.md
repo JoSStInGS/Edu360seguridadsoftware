@@ -1,4 +1,13 @@
-# Edu360 Mobile - Plan de Adaptacion al Backlog Refinado
+# Edu360 Mobile - Plan diferido
+
+## Estado vigente
+La app movil queda diferida hasta la fase final del proyecto. La tecnologia
+objetivo cambiara, por lo que este plan ya no debe ejecutarse como roadmap
+activo sobre React Native/Expo.
+
+El contenido siguiente se conserva solo como referencia historica de flujos,
+pantallas y necesidades funcionales que deberan reinterpretarse cuando se defina
+la nueva tecnologia movil.
 
 ## Resumen
 La app movil ya no debe planificarse como una aplicacion solo para profesores ni

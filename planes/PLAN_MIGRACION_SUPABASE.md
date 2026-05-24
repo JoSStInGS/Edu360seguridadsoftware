@@ -13,6 +13,12 @@ adaptar y migrar en lugar de reconstruir.
 - Evitar doble implementacion permanente entre Firebase y Supabase.
 - Migrar por dominios funcionales con pruebas de regresion antes de retirar lo
   anterior.
+- No usar un `.env` global compartido. Cada aplicacion debe mantener sus
+  propias variables de entorno; el repo raiz queda solo para tooling como
+  Supabase CLI.
+- Diferir la app movil hasta la fase final, porque su tecnologia objetivo va a
+  cambiar. La implementacion actual en React Native/Expo no guia el camino
+  critico de la migracion.
 
 ## Historias y tareas transversales que fijan la migracion
 - HU-01, HU-02, HU-15, HU-16, HU-24 y HU-34 para identidad, onboarding y
@@ -45,11 +51,11 @@ Documento de diseño: `planes/DISENO_BASE_DATOS_SUPABASE.md`.
 - [x] Crear convenciones de `center_id`, timestamps, auditoria y estados activos.
 
 ## Fase 2 — Autenticacion, sesion y administracion
-- [ ] Migrar Auth a Supabase para web y mobile.
+- [ ] Migrar Auth a Supabase para web.
 - [ ] Resolver `profiles` y `user_roles`.
 - [ ] Implementar validacion JWT server-side y helpers SSR en web.
 - [ ] Migrar generacion de codigos, activacion y gestion administrativa de HU-24.
-- [ ] Preparar recuperacion de contrasena y OAuth segun HU-15/HU-34.
+- [ ] Preparar recuperacion de contrasena y OAuth web segun HU-15/HU-34.
 
 ## Fase 3 — RLS y contratos seguros
 - [ ] Definir policies por:
@@ -77,7 +83,7 @@ Documento de diseño: `planes/DISENO_BASE_DATOS_SUPABASE.md`.
 ## Fase 6 — Calidad, corte y retiro de legado
 - [ ] Agregar pruebas de regresion para cada dominio migrado.
 - [ ] Confirmar cobertura de acceso autorizado/no autorizado.
-- [ ] Verificar entornos dev/staging/prod y variables separadas.
+- [ ] Verificar entornos dev/staging/prod con variables separadas por aplicacion.
 - [ ] Retirar dependencias Firebase por modulo solo despues de su reemplazo.
 - [ ] Actualizar README y planes afectados cuando una fase se complete.
 

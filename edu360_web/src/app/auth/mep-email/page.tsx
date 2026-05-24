@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { auth } from '@/app/lib/firebase'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 import { logout } from '@/app/auth/services/auth'
+import { createClient } from '@/app/lib/supabase/client'
 
 export default function MepEmailPage() {
   const router = useRouter()
+  const supabase = createClient()
   const [mepEmail, setMepEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,18 +26,17 @@ export default function MepEmailPage() {
 
     setLoading(true)
     try {
-      const user = auth.currentUser
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
         router.replace('/auth')
         return
       }
 
-      const idToken = await user.getIdToken()
       const res = await fetch('/api/users/save-mep-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ mepEmail: trimmed }),
       })
