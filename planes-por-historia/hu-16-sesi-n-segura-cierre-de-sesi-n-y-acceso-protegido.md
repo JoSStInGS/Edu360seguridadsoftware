@@ -52,7 +52,7 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
 
 ### Etapa 3 - Infraestructura, datos y persistencia
 - [x] Integrar helpers SSR de Supabase y validación JWT en Edge Functions.
-  - Evidencia: se agregaron `src/app/lib/supabase/client.ts`, `server.ts`, `middleware.ts`, `src/middleware.ts` y `src/app/api/_lib/require-supabase-user.ts`.
+  - Evidencia: se agregaron `src/app/lib/supabase/client.ts`, `server.ts`, `middleware.ts`, `src/middleware.ts` y `src/app/api/_lib/require-supabase-user.ts`; el helper acepta cookie SSR o Bearer token Supabase para endpoints API.
 - [x] Crear o ajustar persistencia, migraciones, consultas, indices y transacciones cuando apliquen.
   - Evidencia: no se requirio migracion nueva; se consume `active_user_context` de la migracion existente.
 - [x] Asegurar que los adaptadores no filtren detalles del proveedor a capas superiores.
@@ -60,11 +60,11 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
 
 ### Etapa 4 - Frontend/UI y experiencia de usuario
 - [x] Implementar rutas protegidas, loaders y pantalla de acceso denegado.
-  - Evidencia: `dashboard/layout.tsx` usa `requireWebAuthContext`; se agrego `/access-denied`; `DashboardLayout` mantiene loaders/redirecciones.
+  - Evidencia: `dashboard/layout.tsx` usa `requireWebAuthContext`; se agrego `/access-denied`; `DashboardLayout` mantiene loaders/redirecciones; middleware permite rutas de onboarding `/auth/*` para usuarios autenticados.
 - [x] Exponer el flujo con estados de carga, exito, vacio y error.
-  - Evidencia: `useAuth` maneja carga, ausencia de usuario y errores de perfil; login/logout actualizan estado Supabase.
+  - Evidencia: `useAuth` maneja carga, ausencia de usuario y errores de perfil; login/logout actualizan estado Supabase; `/welcome` envia primero a completar perfil si no hay roles y luego a correo MEP si aplica.
 - [x] Validar inputs y refrescar datos despues de mutaciones.
-  - Evidencia: logout limpia sesion Supabase y redirige; login email/OAuth actualiza sesion mediante `onAuthStateChange`.
+  - Evidencia: logout limpia sesion Supabase y redirige; login email/OAuth normaliza correo y actualiza sesion mediante `onAuthStateChange`; `save-mep-email` guarda `profiles.mep_email` en Supabase.
 
 ### Etapa 5 - Seguridad, permisos y aislamiento
 - [x] Rechazar sesiones expiradas o tokens inválidos en backend.
@@ -73,13 +73,15 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
   - Evidencia: `requireWebAuthContext` valida roles server-side antes de renderizar `/dashboard`.
 - [x] No exponer secretos, tokens ni detalles internos en mensajes o logs.
   - Evidencia: cliente usa `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; `SUPABASE_SECRET_KEY` queda server-only y sin uso publico.
+- [x] Restringir redirecciones post-auth a destinos internos.
+  - Evidencia: `/auth/callback` valida `next` y cae a `/welcome` si recibe URL absoluta, protocol-relative o valor externo.
 
 ### Etapa 6 - Pruebas automatizadas
 - [ ] Cubrir expiración, logout y acceso prohibido.
 - [x] Ejecutar la suite relevante y registrar resultado.
   - Evidencia: `npm run lint` paso con 4 warnings preexistentes; `npm run build` paso completo.
 - [x] Corregir fallos introducidos por la historia antes del cierre.
-  - Evidencia: se corrigio incompatibilidad `user.getIdToken()` agregando compatibilidad temporal con `access_token`.
+  - Evidencia: se corrigio incompatibilidad de onboarding al aceptar Bearer token Supabase en `save-mep-email`; quedan endpoints legacy Firebase para historias posteriores.
 
 ### Etapa 7 - Validacion manual guiada
 - [ ] Ejecutar el caso exitoso completo desde la UI o flujo principal.
@@ -92,7 +94,7 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
 - [x] CA-02: Dado un tiempo de inactividad superior al configurado, cuando el usuario vuelva a interactuar, entonces el sistema debe solicitar autenticación nuevamente. | Evidencia: middleware implementa expiracion por `edu360_last_activity` y redireccion a `/auth?reason=inactive`; pendiente prueba manual.
 - [x] CA-03: Cuando el usuario cierre sesión, entonces se deben limpiar credenciales locales y redirigir al login. | Evidencia: `logout()` usa `supabase.auth.signOut()` y UI redirige a `/auth`; pendiente prueba manual.
 - [x] CA-04: Dado un usuario sin permiso, cuando intente acceder a una ruta restringida, entonces debe recibir estado de acceso denegado. | Evidencia: `requireWebAuthContext()` redirige a `/access-denied` si `canAccessWeb` falla.
-- [x] CA-05: Todo endpoint server-side protegido debe validar el JWT de Supabase antes de procesar la solicitud. | Evidencia: helper `requireSupabaseUser()` creado para endpoints nuevos; migracion de endpoints existentes queda por HU especifica.
+- [x] CA-05: Todo endpoint server-side protegido debe validar el JWT de Supabase antes de procesar la solicitud. | Evidencia: helper `requireSupabaseUser()` valida cookie SSR o Bearer token Supabase; `save-mep-email` ya lo usa; migracion de endpoints legacy restantes queda por HU especifica.
 
 ### Etapa 9 - Cierre Definition of Done
 - [ ] Guards de rutas web y móvil configurados. | Web listo; móvil diferido por decision de alcance.

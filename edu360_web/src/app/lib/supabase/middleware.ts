@@ -9,7 +9,7 @@ function isProtectedPath(pathname: string) {
 }
 
 function isAuthPath(pathname: string) {
-  return pathname === "/auth" || pathname.startsWith("/auth/");
+  return pathname === "/auth";
 }
 
 function readLastActivity(request: NextRequest) {

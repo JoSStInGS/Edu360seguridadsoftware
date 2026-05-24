@@ -32,18 +32,28 @@ export async function signInWithGoogle(): Promise<AuthServiceUser | null> {
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<AuthServiceUser> {
+  const normalizedEmail = email.trim().toLowerCase();
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: normalizedEmail,
     password,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (error.message.toLowerCase().includes("invalid login credentials")) {
+      throw new Error(
+        "Correo o contraseña inválidos. Verifica que el usuario exista en Supabase Auth, tenga contraseña configurada y el email esté confirmado."
+      );
+    }
+
+    throw error;
+  }
   if (!data.user) throw new Error("No se pudo iniciar sesión.");
 
   return withLegacyUserAliases(data.user);
 }
 
 export async function registerWithEmail(email: string, password: string): Promise<AuthServiceUser> {
+  const normalizedEmail = email.trim().toLowerCase();
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/;
   if (!passwordRegex.test(password)) {
     throw new Error(
@@ -52,7 +62,7 @@ export async function registerWithEmail(email: string, password: string): Promis
   }
 
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: normalizedEmail,
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
