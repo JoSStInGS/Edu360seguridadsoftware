@@ -1,126 +1,152 @@
+import { createHash, randomInt } from "crypto";
 import { NextResponse } from "next/server";
-import { getAdminFirestore } from "@/app/lib/firebaseAdmin";
-import { getAuth } from "firebase-admin/auth";
-import { ensureAdminApp } from "@/app/lib/firebaseAdmin";
+import { requireCenterAdmin } from "@/app/api/_lib/require-center-admin";
 
 export const runtime = "nodejs";
 
-function generateSixDigitCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+const ROLE_MAP: Record<string, string> = {
+  admin: "center_admin",
+  professor: "professor",
+  parent: "guardian",
+};
+
+function generateSixDigitCode() {
+  return randomInt(100000, 1000000).toString();
+}
+
+function hashCode(code: string) {
+  return createHash("sha256").update(code).digest("hex");
 }
 
 export async function POST(request: Request) {
-    try {
-        // 1. Verify Bearer token
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-        }
-        const idToken = authHeader.split("Bearer ")[1];
+  try {
+    const context = await requireCenterAdmin(request);
+    if (context.response) return context.response;
 
-        const app = ensureAdminApp();
-        const auth = getAuth(app);
-        const decodedToken = await auth.verifyIdToken(idToken);
-        const uid = decodedToken.uid;
+    const { user, centerId, supabase } = context;
+    const { role, profesorId, periodId, studentCedulas } = (await request.json()) as {
+      role?: string;
+      profesorId?: string;
+      periodId?: string;
+      studentCedulas?: string[];
+    };
 
-        const db = getAdminFirestore();
-
-        // 2. Verify user is admin
-        const userDoc = await db.collection("users").doc(uid).get();
-        if (!userDoc.exists) {
-            return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-        }
-
-        const userData = userDoc.data();
-        const userRoles: string[] = (() => {
-            if (Array.isArray(userData?.roles) && userData.roles.length > 0) return userData.roles;
-            if (typeof userData?.role === "string" && userData.role) return [userData.role];
-            return [];
-        })();
-        if (!userRoles.includes("admin")) {
-            return NextResponse.json({ error: "Acceso denegado. Se requiere rol de administrador." }, { status: 403 });
-        }
-
-        const centerId = userData?.centerId;
-        if (!centerId) {
-            return NextResponse.json({ error: "Usuario sin centro asociado" }, { status: 400 });
-        }
-
-        // 3. Parse body
-        const { role, profesorId, periodId, studentCedulas } = await request.json();
-
-        if (!role || !["professor", "admin", "parent"].includes(role)) {
-            return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
-        }
-
-        // Validate studentCedulas for parent role
-        if (role === "parent") {
-            if (!studentCedulas || !Array.isArray(studentCedulas) || studentCedulas.length === 0) {
-                return NextResponse.json({ error: "Debe seleccionar al menos un estudiante" }, { status: 400 });
-            }
-            if (!periodId) {
-                return NextResponse.json({ error: "Se requiere un periodo activo" }, { status: 400 });
-            }
-
-            // Validate that each cedula exists in the students collection
-            const studentsRef = db.collection("centers").doc(centerId).collection("periods").doc(periodId).collection("students");
-            for (const cedula of studentCedulas) {
-                const studentDoc = await studentsRef.doc(cedula).get();
-                if (!studentDoc.exists) {
-                    return NextResponse.json({ error: `Estudiante con cédula ${cedula} no encontrado` }, { status: 400 });
-                }
-            }
-        }
-
-        // 4. Generate unique 6-digit code
-        const codesRef = db.collection("centers").doc(centerId).collection("register_codes");
-        let code = generateSixDigitCode();
-        let attempts = 0;
-
-        while (attempts < 10) {
-            const existing = await codesRef.doc(code).get();
-            if (!existing.exists) break;
-            code = generateSixDigitCode();
-            attempts++;
-        }
-
-        if (attempts >= 10) {
-            return NextResponse.json({ error: "No se pudo generar un código único" }, { status: 500 });
-        }
-
-        // 5. Save code with 15-minute expiration
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
-
-        const codeData: Record<string, unknown> = {
-            role,
-            expires_at: expiresAt,
-            createdAt: now,
-            used: false,
-            usedBy: null,
-            createdBy: uid,
-        };
-
-        if (role === "professor" && profesorId) {
-            codeData.profesorId = profesorId;
-            if (periodId) {
-                codeData.periodId = periodId;
-            }
-        }
-
-        if (role === "parent") {
-            codeData.studentCedulas = studentCedulas;
-            codeData.periodId = periodId;
-        }
-
-        await codesRef.doc(code).set(codeData);
-
-        return NextResponse.json({
-            code,
-            expiresAt: expiresAt.toISOString(),
-        });
-    } catch (error) {
-        console.error("Error generating code:", error);
-        return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    const supabaseRole = role ? ROLE_MAP[role] : null;
+    if (!role || !supabaseRole) {
+      return NextResponse.json({ error: "Rol invalido" }, { status: 400 });
     }
+
+    if (role === "professor" && profesorId) {
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("id", profesorId)
+        .eq("center_id", centerId)
+        .maybeSingle();
+
+      if (!teacher) {
+        return NextResponse.json({ error: "Profesor no encontrado" }, { status: 400 });
+      }
+    }
+
+    if (role === "parent") {
+      if (!Array.isArray(studentCedulas) || studentCedulas.length === 0) {
+        return NextResponse.json({ error: "Debe seleccionar al menos un estudiante" }, { status: 400 });
+      }
+
+      if (!periodId) {
+        return NextResponse.json({ error: "Se requiere un periodo activo" }, { status: 400 });
+      }
+
+      const { data: students, error: studentsError } = await supabase
+        .from("students")
+        .select("id")
+        .eq("center_id", centerId)
+        .eq("academic_period_id", periodId)
+        .in("id", studentCedulas);
+
+      if (studentsError || (students ?? []).length !== studentCedulas.length) {
+        return NextResponse.json({ error: "Uno o mas estudiantes no pertenecen al centro" }, { status: 400 });
+      }
+    }
+
+    let code = generateSixDigitCode();
+    let codeHash = hashCode(code);
+    let attempts = 0;
+
+    while (attempts < 10) {
+      const { data: existingCode } = await supabase
+        .from("activation_codes")
+        .select("id")
+        .eq("center_id", centerId)
+        .eq("code_hash", codeHash)
+        .maybeSingle();
+
+      if (!existingCode) break;
+
+      code = generateSixDigitCode();
+      codeHash = hashCode(code);
+      attempts++;
+    }
+
+    if (attempts >= 10) {
+      return NextResponse.json({ error: "No se pudo generar un codigo unico" }, { status: 500 });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+    const purpose = role === "parent" ? "guardian_link" : "registration";
+
+    const { data: activationCode, error: insertError } = await supabase
+      .from("activation_codes")
+      .insert({
+        center_id: centerId,
+        code_hash: codeHash,
+        purpose,
+        role: supabaseRole,
+        academic_period_id: periodId || null,
+        expires_at: expiresAt.toISOString(),
+        created_by: user.id,
+        metadata: {
+          teacher_id: role === "professor" ? profesorId ?? null : null,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !activationCode) {
+      return NextResponse.json({ error: "No se pudo guardar el codigo" }, { status: 500 });
+    }
+
+    if (role === "parent" && studentCedulas?.length) {
+      const { error: linkError } = await supabase.from("activation_code_students").insert(
+        studentCedulas.map((studentId) => ({
+          activation_code_id: activationCode.id,
+          student_id: studentId,
+          center_id: centerId,
+        }))
+      );
+
+      if (linkError) {
+        return NextResponse.json({ error: "No se pudo vincular estudiantes al codigo" }, { status: 500 });
+      }
+    }
+
+    await supabase.from("audit_logs").insert({
+      center_id: centerId,
+      actor_id: user.id,
+      action: "activation_code_created",
+      entity_type: "activation_code",
+      entity_id: activationCode.id,
+      new_data: { purpose, role: supabaseRole, expires_at: expiresAt.toISOString() },
+    });
+
+    return NextResponse.json({
+      code,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    console.error("Error generating code:", error);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+  }
 }
