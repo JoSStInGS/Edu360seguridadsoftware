@@ -112,6 +112,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/auth");
+    }
+  }, [loading, router, user]);
+
   const renderSidebarContent = (onNavigate?: () => void) => (
     <div className="flex h-full flex-col justify-between">
       <div>
@@ -203,7 +209,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    router.replace("/auth");
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--background-light)] text-[var(--muted-light)] dark:bg-[var(--background-dark)] dark:text-[var(--muted-dark)]">
         Redirigiendo...

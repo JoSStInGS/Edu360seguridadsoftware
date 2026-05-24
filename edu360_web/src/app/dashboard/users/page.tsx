@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
-import { db } from "@/app/lib/firebase";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { createClient } from "@/app/lib/supabase/client";
 import CustomSelect from "@/app/components/CustomSelect";
 import UsersTable, { UserRow } from "./components/UsersTable";
 import UserMetricsCards from "./components/UserMetricsCards";
@@ -30,8 +29,9 @@ interface StudentOption {
 }
 
 export default function UsersPage() {
-    const { user } = useAuth();
-    const { periods, selectedPeriod, isLoading: periodsLoading } = usePeriodStore();
+    const { user, centerId } = useAuth();
+    const { selectedPeriod } = usePeriodStore();
+    const supabase = useMemo(() => createClient(), []);
 
     const [users, setUsers] = useState<UserRow[]>([]);
     const [metrics, setMetrics] = useState<Metrics>({ total: 0, admins: 0, professors: 0, parents: 0 });
@@ -79,19 +79,20 @@ export default function UsersPage() {
 
     // Fetch professors for the active period
     const fetchProfesores = useCallback(async () => {
-        if (!user || !selectedPeriod) return;
+        if (!user || !centerId) return;
 
         try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            const centerId = userDoc.data()?.centerId;
-            if (!centerId) return;
+            const { data, error } = await supabase
+                .from("teachers")
+                .select("id,full_name")
+                .eq("center_id", centerId)
+                .eq("status", "active");
 
-            const periodRef = doc(db, "centers", centerId, "periods", selectedPeriod);
-            const profSnap = await getDocs(collection(periodRef, "profesores"));
+            if (error) throw error;
 
-            const profs: Profesor[] = profSnap.docs.map((d) => ({
-                id: d.id,
-                nombre: d.data().nombre || d.data().name || "Sin nombre",
+            const profs: Profesor[] = (data ?? []).map((teacher) => ({
+                id: teacher.id,
+                nombre: teacher.full_name || "Sin nombre",
             }));
 
             profs.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -99,38 +100,34 @@ export default function UsersPage() {
         } catch (err) {
             console.error("Error loading profesores:", err);
         }
-    }, [user, selectedPeriod]);
+    }, [centerId, supabase, user]);
 
     // Fetch students for the active period (for parent code generation)
     const fetchStudents = useCallback(async () => {
-        if (!user || !selectedPeriod) return;
+        if (!user || !centerId || !selectedPeriod) return;
 
         try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            const centerId = userDoc.data()?.centerId;
-            if (!centerId) return;
+            const { data, error } = await supabase
+                .from("students")
+                .select("id,identification,full_name")
+                .eq("center_id", centerId)
+                .eq("academic_period_id", selectedPeriod)
+                .eq("status", "active");
 
-            const periodRef = doc(db, "centers", centerId, "periods", selectedPeriod);
-            const studentsSnap = await getDocs(collection(periodRef, "students"));
+            if (error) throw error;
 
-            const studentsList: StudentOption[] = studentsSnap.docs.map((d) => {
-                const data = d.data();
-                const fullName = data.fullName ||
-                    [data.name, data.lastName1, data.lastName2].filter(Boolean).join(" ") ||
-                    "Sin nombre";
-                return {
-                    cedula: d.id,
-                    fullName,
-                    grupoNombre: data.grupoNombre || null,
-                };
-            });
+            const studentsList: StudentOption[] = (data ?? []).map((student) => ({
+                cedula: student.id,
+                fullName: student.full_name || student.identification || "Sin nombre",
+                grupoNombre: student.identification || null,
+            }));
 
             studentsList.sort((a, b) => a.fullName.localeCompare(b.fullName));
             setStudents(studentsList);
         } catch (err) {
             console.error("Error loading students:", err);
         }
-    }, [user, selectedPeriod]);
+    }, [centerId, selectedPeriod, supabase, user]);
 
     useEffect(() => {
         fetchUsers();

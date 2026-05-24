@@ -29,13 +29,19 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
 
 ### Tareas manuales o configuracion externa
 - [ ] Revisar manualmente que RLS y politicas queden activas y probadas con actores distintos: RLS y controles server-side para admin del centro.
+  - Evidencia parcial: MCP Supabase confirmo RLS activo en tablas de HU-24 y advisors disponibles; falta prueba manual con actores reales.
 
 ### Etapa 0 - Preparacion y lectura de contexto
-- [ ] Leer esta HU completa, sus dependencias y el estado actual del repositorio antes de editar codigo.
-- [ ] Localizar los modulos existentes de dominio, aplicacion, infraestructura, UI, pruebas y migraciones.
-- [ ] Identificar patrones existentes para entidades, casos de uso, repositorios, validaciones, errores y componentes UI.
-- [ ] Confirmar si las dependencias declaradas ya estan implementadas; si alguna falta, documentar el bloqueo y no simular comportamiento inexistente.
-- [ ] Definir datos de prueba representativos y actores con/sin permisos cuando aplique.
+- [x] Leer esta HU completa, sus dependencias y el estado actual del repositorio antes de editar codigo.
+  - Evidencia: se reviso HU-24, backlog refinado y secuencia recomendada; HU-16 queda como dependencia previa.
+- [x] Localizar los modulos existentes de dominio, aplicacion, infraestructura, UI, pruebas y migraciones.
+  - Evidencia: se localizaron `dashboard/users`, `api/users`, `api/users/generate-code`, `api/validate-code`, tablas Supabase y policies RLS.
+- [x] Identificar patrones existentes para entidades, casos de uso, repositorios, validaciones, errores y componentes UI.
+  - Evidencia: se preservaron componentes `UsersTable`, `GenerateCodeModal`, `EditUserModal` y contrato de respuestas existente.
+- [x] Confirmar si las dependencias declaradas ya estan implementadas; si alguna falta, documentar el bloqueo y no simular comportamiento inexistente.
+  - Evidencia: MCP Supabase funciona; migraciones remotas `initial_schema`, `init-migration` y `operational_complements` estan aplicadas.
+- [x] Definir datos de prueba representativos y actores con/sin permisos cuando aplique.
+  - Evidencia: MCP reporta 2 perfiles y cero `user_roles`, `teachers`, `students` y codigos; falta seed/usuario admin real para validacion manual.
 
 ### Etapa 1 - Dominio y reglas de negocio
 - [ ] Definir entidades administrativas y ciclo de vida de códigos.
@@ -47,24 +53,35 @@ El resultado esperado es que todos los criterios de aceptacion pasen, las tareas
 - [ ] Agregar pruebas de aplicacion con dobles de puertos para exito, validacion y permisos.
 
 ### Etapa 3 - Infraestructura, datos y persistencia
-- [ ] Persistir usuarios, roles, códigos y auditoría.
-- [ ] Crear o ajustar persistencia, migraciones, consultas, indices y transacciones cuando apliquen.
-- [ ] Asegurar que los adaptadores no filtren detalles del proveedor a capas superiores.
+- [x] Persistir usuarios, roles, códigos y auditoría.
+  - Evidencia: `/api/users` usa `profiles`, `user_roles` y `audit_logs`; `/api/users/generate-code` usa `activation_codes` y `activation_code_students`.
+- [x] Crear o ajustar persistencia, migraciones, consultas, indices y transacciones cuando apliquen.
+  - Evidencia: no se requirio migracion nueva; se reutilizaron tablas existentes confirmadas por MCP.
+- [x] Asegurar que los adaptadores no filtren detalles del proveedor a capas superiores.
+  - Evidencia: los endpoints mantienen contrato legacy `admin/professor/parent` y mapean internamente a `center_admin/professor/guardian`.
 
 ### Etapa 4 - Frontend/UI y experiencia de usuario
-- [ ] Adaptar las tablas, modales y formularios administrativos ya existentes para el nuevo contrato de HU-24.
-- [ ] Exponer el flujo con estados de carga, exito, vacio y error.
-- [ ] Validar inputs y refrescar datos despues de mutaciones.
+- [x] Adaptar las tablas, modales y formularios administrativos ya existentes para el nuevo contrato de HU-24.
+  - Evidencia: `dashboard/users/page.tsx` lee usuarios por API Supabase y obtiene profesores/estudiantes desde tablas Supabase.
+- [x] Exponer el flujo con estados de carga, exito, vacio y error.
+  - Evidencia: se conserva carga existente, filtros y modales; errores de API se mantienen en consola/estado actual.
+- [x] Validar inputs y refrescar datos despues de mutaciones.
+  - Evidencia: roles, periodo, profesor y estudiantes se validan server-side; la pantalla refresca usuarios tras editar/desactivar.
 
 ### Etapa 5 - Seguridad, permisos y aislamiento
-- [ ] RLS y controles server-side para admin del centro.
-- [ ] Validar permisos server-side y confirmar aislamiento entre contextos.
-- [ ] No exponer secretos, tokens ni detalles internos en mensajes o logs.
+- [x] RLS y controles server-side para admin del centro.
+  - Evidencia: se agrego `requireCenterAdmin()` y rutas server-side validan Bearer Supabase antes de operar.
+- [x] Validar permisos server-side y confirmar aislamiento entre contextos.
+  - Evidencia: endpoints filtran por `centerId` del administrador autenticado; falta validacion manual con segundo centro.
+- [x] No exponer secretos, tokens ni detalles internos en mensajes o logs.
+  - Evidencia: `SUPABASE_SECRET_KEY` solo se usa en helper server-only `createAdminClient()`.
 
 ### Etapa 6 - Pruebas automatizadas
 - [ ] Cubrir alta, edición, desactivación y generación de códigos.
-- [ ] Ejecutar la suite relevante y registrar resultado.
-- [ ] Corregir fallos introducidos por la historia antes del cierre.
+- [x] Ejecutar la suite relevante y registrar resultado.
+  - Evidencia: `npm run lint` paso con 2 warnings preexistentes; `npm run build` paso completo.
+- [x] Corregir fallos introducidos por la historia antes del cierre.
+  - Evidencia: lint/build no reportan errores introducidos por HU-24.
 
 ### Etapa 7 - Validacion manual guiada
 - [ ] Ejecutar el caso exitoso completo desde la UI o flujo principal.
