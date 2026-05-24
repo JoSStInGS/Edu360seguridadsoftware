@@ -1,153 +1,163 @@
-import {
-    auth,
-    googleProvider,
-    db,
-} from "@/app/lib/firebase";
-import {
-    signInWithPopup,
-    signInWithRedirect,
-    getRedirectResult,
-    signOut,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    User,
-} from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { normalizeRoles, type UserRole } from "@/app/lib/roles";
+"use client";
 
-/**
- * Initiates Google login using a popup or redirect as fallback.
- */
-export async function signInWithGoogle(): Promise<User | null> {
-    try {
-        const result = await signInWithPopup(auth, googleProvider);
-        await ensureInitialUserDoc(result.user);
-        return result.user;
-    } catch (err: unknown) {
-        if (typeof err === "object" && err && (err as { code?: string }).code === "auth/popup-blocked") {
-            await signInWithRedirect(auth, googleProvider);
-            return null;
-        }
-        throw err;
-    }
+import type { User } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/supabase/client";
+import { mapSupabaseRole, type UserRole } from "@/app/lib/roles";
+
+const supabase = createClient();
+
+export type AuthServiceUser = User & { uid: string; displayName: string | null };
+
+function withLegacyUserAliases(user: User): AuthServiceUser {
+  return {
+    ...user,
+    uid: user.id,
+    displayName:
+      user.user_metadata?.display_name ??
+      user.user_metadata?.full_name ??
+      null,
+  };
 }
 
-/**
- * Logs in using email and password credentials.
- */
-export async function signInWithEmail(email: string, password: string): Promise<User> {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    await ensureInitialUserDoc(cred.user);
-    return cred.user;
+export async function signInWithGoogle(): Promise<AuthServiceUser | null> {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
+    },
+  });
+
+  if (error) throw error;
+  return null;
 }
 
-/**
- * Registers a new user with email and password.
- */
-export async function registerWithEmail(email: string, password: string): Promise<User> {
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/;
-    if (!passwordRegex.test(password)) {
-        throw new Error(
-            "La contraseña debe ser mayor a 8 caracteres y contener al menos un número, una letra mayúscula y una letra minúscula."
-        );
-    }
+export async function signInWithEmail(email: string, password: string): Promise<AuthServiceUser> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await ensureInitialUserDoc(cred.user);
-    return cred.user;
+  if (error) throw error;
+  if (!data.user) throw new Error("No se pudo iniciar sesión.");
+
+  return withLegacyUserAliases(data.user);
 }
 
-/**
- * Handles the login result if the user was redirected.
- * Call this function on page load to complete redirect login flow.
- * @returns {Promise<void>}
- */
+export async function registerWithEmail(email: string, password: string): Promise<AuthServiceUser> {
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/;
+  if (!passwordRegex.test(password)) {
+    throw new Error(
+      "La contraseña debe ser mayor a 8 caracteres y contener al menos un número, una letra mayúscula y una letra minúscula."
+    );
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
+    },
+  });
+
+  if (error) throw error;
+  if (!data.user) throw new Error("No se pudo crear la cuenta.");
+
+  return withLegacyUserAliases(data.user);
+}
+
 export async function handleRedirectLoginIfNeeded(): Promise<void> {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-        console.log("Redirect login successful:", result.user.email);
-    }
+  const { error } = await supabase.auth.getSession();
+  if (error) throw error;
 }
 
-/**
- * Signs out the currently logged-in user.
- * @returns {Promise<void>}
- */
 export async function logout(): Promise<void> {
-    await signOut(auth);
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }
 
-/**
- * Saves the user's data in Firestore if this is their first login.
- * The document ID corresponds to the user's UID.
- * @param {User} user - Authenticated Firebase user
- */
-export async function ensureInitialUserDoc(user: User): Promise<void> {
-    const ref = doc(db, "users", user.uid);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) {
-        await setDoc(ref, {
-            email: user.email ?? null,
-            displayName: user.displayName ?? null,
-            photoURL: user.photoURL ?? null,
-            provider: user.providerData?.[0]?.providerId ?? null,
-            createdAt: new Date().toISOString(),
-        });
-    }
+export async function ensureInitialUserDoc(): Promise<void> {
+  return;
 }
 
 export async function getUserRole(userId: string): Promise<string | null> {
-    const ref = doc(db, "users", userId);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data() as { role?: string };
-    return data.role ?? null;
+  const profile = await getUserProfile(userId);
+  return profile?.roles[0] ?? null;
 }
 
 export async function getUserRoles(userId: string): Promise<UserRole[]> {
-    const ref = doc(db, "users", userId);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) return [];
-    return normalizeRoles(snapshot.data());
+  const profile = await getUserProfile(userId);
+  return profile?.roles ?? [];
 }
 
 export interface UserProfileData {
-    roles: UserRole[];
-    centerId: string | null;
-    profesorId: string | null;
-    displayName: string | null;
-    email: string | null;
-    mepEmail: string | null;
+  roles: UserRole[];
+  centerId: string | null;
+  profesorId: string | null;
+  displayName: string | null;
+  email: string | null;
+  mepEmail: string | null;
+}
+
+interface ActiveUserContextRow {
+  profile_id: string;
+  email: string | null;
+  mep_email: string | null;
+  display_name: string | null;
+  center_id: string | null;
+  role: string;
+  is_active: boolean;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileData | null> {
-    const ref = doc(db, "users", userId);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data();
+  const { data, error } = await supabase
+    .from("active_user_context")
+    .select("profile_id,email,mep_email,display_name,center_id,role,is_active")
+    .eq("profile_id", userId)
+    .eq("is_active", true);
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as ActiveUserContextRow[];
+  if (rows.length === 0) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || user.id !== userId) return null;
+
     return {
-        roles: normalizeRoles(data),
-        centerId: (data.centerId as string) ?? null,
-        profesorId: (data.profesorId as string) ?? null,
-        displayName: (data.displayName as string) ?? null,
-        email: (data.email as string) ?? null,
-        mepEmail: (data.mepEmail as string) ?? null,
+      roles: [],
+      centerId: null,
+      profesorId: null,
+      displayName:
+        user.user_metadata?.display_name ??
+        user.user_metadata?.full_name ??
+        null,
+      email: user.email ?? null,
+      mepEmail: null,
     };
+  }
+
+  const roles = Array.from(
+    new Set(rows.map((row) => mapSupabaseRole(row.role)).filter(Boolean))
+  ) as UserRole[];
+
+  return {
+    roles,
+    centerId: rows[0]?.center_id ?? null,
+    profesorId: null,
+    displayName: rows[0]?.display_name ?? null,
+    email: rows[0]?.email ?? null,
+    mepEmail: rows[0]?.mep_email ?? null,
+  };
 }
 
-/**
- * Returns the expected MEP email domain for the given roles.
- * Parents: @est.mep.go.cr | Admins/Professors: @mep.go.cr
- */
 export function getMepDomain(roles: UserRole[]): string {
-    if (roles.includes("parent")) return "@est.mep.go.cr";
-    return "@mep.go.cr";
+  if (roles.includes("parent")) return "@est.mep.go.cr";
+  return "@mep.go.cr";
 }
 
-/**
- * Returns true if the email matches the expected MEP domain for the given roles.
- */
 export function isMepEmail(email: string, roles: UserRole[]): boolean {
-    const domain = getMepDomain(roles);
-    return email.toLowerCase().endsWith(domain);
+  const domain = getMepDomain(roles);
+  return email.toLowerCase().endsWith(domain);
 }

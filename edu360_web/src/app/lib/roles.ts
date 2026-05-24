@@ -1,4 +1,5 @@
 export type UserRole = "admin" | "professor" | "parent";
+export type SupabaseRole = "super_admin" | "center_admin" | "professor" | "student" | "guardian";
 
 /**
  * Normalizes user role data to always return a string array.
@@ -31,4 +32,19 @@ export function hasAnyRole(roles: UserRole[], check: UserRole[]): boolean {
 /** Web dashboard is only accessible by admin and professor */
 export function canAccessWeb(roles: UserRole[]): boolean {
     return hasAnyRole(roles, ["admin", "professor"]);
+}
+
+export function mapSupabaseRole(role: string | null | undefined): UserRole | null {
+    switch (role) {
+        case "super_admin":
+        case "center_admin":
+            return "admin";
+        case "professor":
+            return "professor";
+        case "guardian":
+        case "student":
+            return "parent";
+        default:
+            return null;
+    }
 }
