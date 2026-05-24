@@ -20,10 +20,7 @@ export default function UserMetricsCards({ metrics }: UserMetricsCardsProps) {
     return (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {cards.map((card) => (
-                <div
-                    key={card.key}
-                    className="rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-4 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
-                >
+                <Card key={card.key} className="p-4">
                     <div className="flex items-center gap-3">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.bg}`}>
                             <span className={`material-symbols-outlined text-xl ${card.color}`}>
@@ -39,8 +36,9 @@ export default function UserMetricsCards({ metrics }: UserMetricsCardsProps) {
                             </p>
                         </div>
                     </div>
-                </div>
+                </Card>
             ))}
         </div>
     );
 }
+import { Card } from "@/app/components/ui";

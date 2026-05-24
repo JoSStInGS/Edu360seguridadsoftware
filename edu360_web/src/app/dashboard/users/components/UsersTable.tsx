@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Badge, IconButton } from "@/app/components/ui";
 
 export interface UserRow {
     uid: string;
@@ -89,9 +90,9 @@ export default function UsersTable({ users, onEdit, onDeactivate }: UsersTablePr
                                 <td className="px-6 py-4 text-center">
                                     <div className="flex flex-wrap justify-center gap-1">
                                         {user.roles.map((role) => (
-                                            <span key={role} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClasses(role)}`}>
+                                            <Badge key={role} tone={getRoleTone(role)}>
                                                 {getRoleLabel(role)}
-                                            </span>
+                                            </Badge>
                                         ))}
                                     </div>
                                 </td>
@@ -103,36 +104,31 @@ export default function UsersTable({ users, onEdit, onDeactivate }: UsersTablePr
 
                                 {/* Estado */}
                                 <td className="px-6 py-4 text-center">
-                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(user.status)}`}>
+                                    <Badge tone={user.status === "active" ? "success" : "neutral"}>
                                         {user.status === "active" ? "Activo" : "Inactivo"}
-                                    </span>
+                                    </Badge>
                                 </td>
 
                                 {/* Acciones */}
                                 <td className="px-6 py-4">
                                     <div className="flex items-center justify-center gap-1">
-                                        <button
+                                        <IconButton
+                                            icon="edit"
+                                            label="Editar usuario"
                                             onClick={() => onEdit(user)}
-                                            className="rounded p-1.5 hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                                            title="Editar usuario"
-                                        >
-                                            <span className="material-symbols-outlined text-lg">edit</span>
-                                        </button>
+                                        />
                                         {user.status === "active" && (
-                                            <button
+                                            <IconButton
+                                                icon={confirmUid === user.uid ? "warning" : "person_off"}
+                                                label={confirmUid === user.uid ? "Confirmar desactivar" : "Desactivar usuario"}
                                                 onClick={() => handleDeactivateClick(user)}
-                                                className={`rounded p-1.5 transition-colors ${
+                                                className={
                                                     confirmUid === user.uid
                                                         ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                                                        : "hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)]"
-                                                }`}
-                                                title={confirmUid === user.uid ? "Confirmar desactivar" : "Desactivar usuario"}
+                                                        : ""
+                                                }
                                                 onBlur={() => setConfirmUid(null)}
-                                            >
-                                                <span className="material-symbols-outlined text-lg">
-                                                    {confirmUid === user.uid ? "warning" : "person_off"}
-                                                </span>
-                                            </button>
+                                            />
                                         )}
                                     </div>
                                 </td>
@@ -173,27 +169,14 @@ function getRoleLabel(role: string): string {
     }
 }
 
-function getRoleBadgeClasses(role: string): string {
+function getRoleTone(role: string): "neutral" | "success" | "info" {
     switch (role) {
         case "admin":
-            return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
-        case "professor":
-            return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+            return "info";
         case "parent":
-            return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            return "success";
         default:
-            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-    }
-}
-
-function getStatusClasses(status: string): string {
-    switch (status) {
-        case "active":
-            return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-        case "inactive":
-            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-        default:
-            return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+            return "neutral";
     }
 }
 

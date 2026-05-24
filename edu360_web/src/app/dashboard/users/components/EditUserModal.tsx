@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Button, Modal, Spinner } from "@/app/components/ui";
 import { UserRow } from "./UsersTable";
 
 interface EditUserModalProps {
@@ -46,25 +47,10 @@ export default function EditUserModal({ isOpen, user, onClose, onSave }: EditUse
         (selectedRoles.length !== user.roles.length ||
             selectedRoles.some((r) => !user.roles.includes(r)));
 
-    if (!isOpen || !user) return null;
+    if (!user) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-md rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-xl dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-                {/* Header */}
-                <div className="mb-6 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-                        Editar Usuario
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className="rounded p-1 hover:bg-[rgba(15,23,42,0.08)] dark:hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                    >
-                        <span className="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-
+        <Modal isOpen={isOpen} onClose={onClose} title="Editar Usuario">
                 {/* User Info (read-only) */}
                 <div className="mb-6 rounded-lg border border-[var(--border-light)] dark:border-[var(--border-dark)] p-4">
                     <div className="flex items-center gap-3 mb-3">
@@ -121,29 +107,33 @@ export default function EditUserModal({ isOpen, user, onClose, onSave }: EditUse
 
                 {/* Actions */}
                 <div className="flex gap-3">
-                    <button
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth={false}
                         onClick={onClose}
-                        className="flex-1 rounded-lg border border-[var(--border-light)] dark:border-[var(--border-dark)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)] transition hover:bg-[rgba(15,23,42,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)]"
+                        className="flex-1 py-2.5 text-sm"
                     >
                         Cancelar
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        type="button"
+                        fullWidth={false}
                         onClick={handleSave}
                         disabled={isSaving || !rolesChanged || selectedRoles.length === 0}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex-1 py-2.5 text-sm"
                     >
                         {isSaving ? (
                             <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                <Spinner />
                                 Guardando...
                             </>
                         ) : (
                             "Guardar cambios"
                         )}
-                    </button>
+                    </Button>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }
 

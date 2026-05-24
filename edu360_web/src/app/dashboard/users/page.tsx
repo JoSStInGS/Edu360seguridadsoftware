@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import { usePeriodStore } from "@/app/stores/usePeriodStore";
 import { createClient } from "@/app/lib/supabase/client";
-import CustomSelect from "@/app/components/CustomSelect";
+import { Button, Card, EmptyState as UiEmptyState, Input, PageHeader, Select } from "@/app/components/ui";
 import UsersTable, { UserRow } from "./components/UsersTable";
 import UserMetricsCards from "./components/UserMetricsCards";
 import GenerateCodeModal from "./components/GenerateCodeModal";
@@ -229,32 +229,31 @@ export default function UsersPage() {
 
     return (
         <div className="mx-auto w-full max-w-7xl">
-            {/* Header */}
-            <div className="mb-6 xl:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-2">
-                    <h2 className="text-3xl font-bold">Usuarios</h2>
-                    <p className="text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                        Gestiona los usuarios registrados y genera codigos de acceso.
-                    </p>
-                </div>
-                <button
+            <PageHeader
+                title="Usuarios"
+                description="Gestiona los usuarios registrados y genera codigos de acceso."
+                action={(
+                  <Button
+                    type="button"
+                    fullWidth={false}
+                    leftIcon={<span className="material-symbols-outlined text-base">key</span>}
                     onClick={() => setShowGenerateModal(true)}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105"
-                >
-                    <span className="material-symbols-outlined text-base">key</span>
+                    className="py-2 text-sm"
+                  >
                     Generar codigo
-                </button>
-            </div>
+                  </Button>
+                )}
+            />
 
             {/* Filters */}
-            <div className="mb-6 xl:mb-8 rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-6 shadow-sm dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
+            <Card className="mb-6 p-6 xl:mb-8">
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {/* Role filter */}
                     <div>
                         <label className="text-sm font-medium text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                             Rol
                         </label>
-                        <CustomSelect
+                        <Select
                             availableKeys={["Todos", "Administrador", "Profesor", "Encargado legal"]}
                             value={selectedRole}
                             onChange={(key) => setSelectedRole(key)}
@@ -271,12 +270,12 @@ export default function UsersPage() {
                             Busqueda
                         </label>
                         <div className="relative mt-1">
-                            <input
+                            <Input
                                 type="search"
                                 placeholder="Buscar por nombre o email..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full h-10 rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] pl-10 pr-4 py-2 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
+                                className="h-10 rounded-lg border border-[var(--border-light)] bg-[var(--card-light)] py-2 pl-10 pr-4 text-sm focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]"
                             />
                             <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
                                 search
@@ -284,7 +283,7 @@ export default function UsersPage() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </Card>
 
             {/* Metrics */}
             <div className="mb-6 xl:mb-8">
@@ -349,38 +348,41 @@ function EmptyState({
     onClearFilters: () => void;
     onGenerateCode: () => void;
 }) {
+    const action = hasFilters ? (
+        <Button
+            type="button"
+            variant="secondary"
+            fullWidth={false}
+            onClick={onClearFilters}
+            leftIcon={<span className="material-symbols-outlined text-base">filter_alt_off</span>}
+            className="py-2 text-sm font-medium"
+        >
+            Limpiar filtros
+        </Button>
+    ) : (
+        <Button
+            type="button"
+            fullWidth={false}
+            onClick={onGenerateCode}
+            leftIcon={<span className="material-symbols-outlined text-base">key</span>}
+            className="py-2 text-sm"
+        >
+            Generar codigo
+        </Button>
+    );
+
     return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--border-light)] bg-[var(--card-light)] p-12 text-center dark:border-[var(--border-dark)] dark:bg-[var(--card-dark)]">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                <span className="material-symbols-outlined text-3xl text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                    {hasFilters ? "search_off" : "manage_accounts"}
-                </span>
-            </div>
-            <h3 className="mb-2 text-lg font-semibold text-[var(--foreground-light)] dark:text-[var(--foreground-dark)]">
-                {hasFilters ? "No se encontraron resultados" : "No hay usuarios"}
-            </h3>
-            <p className="mb-6 max-w-sm text-sm text-[var(--muted-light)] dark:text-[var(--muted-dark)]">
-                {hasFilters
-                    ? "Intenta cambiar los filtros de busqueda o el rol seleccionado."
-                    : "Genera un codigo de registro para que los usuarios puedan crear sus cuentas."}
-            </p>
-            {hasFilters ? (
-                <button
-                    onClick={onClearFilters}
-                    className="flex items-center gap-2 rounded-lg border border-[var(--border-light)] px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:border-[var(--border-dark)] dark:hover:bg-gray-800"
-                >
-                    <span className="material-symbols-outlined text-base">filter_alt_off</span>
-                    Limpiar filtros
-                </button>
-            ) : (
-                <button
-                    onClick={onGenerateCode}
-                    className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:brightness-105"
-                >
-                    <span className="material-symbols-outlined text-base">key</span>
-                    Generar codigo
-                </button>
-            )}
-        </div>
+        <Card className="p-12">
+            <UiEmptyState
+                icon={hasFilters ? "search_off" : "manage_accounts"}
+                title={hasFilters ? "No se encontraron resultados" : "No hay usuarios"}
+                description={
+                    hasFilters
+                        ? "Intenta cambiar los filtros de busqueda o el rol seleccionado."
+                        : "Genera un codigo de registro para que los usuarios puedan crear sus cuentas."
+                }
+                action={action}
+            />
+        </Card>
     );
 }
