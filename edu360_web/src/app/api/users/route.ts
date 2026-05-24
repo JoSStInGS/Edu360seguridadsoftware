@@ -28,13 +28,14 @@ interface UserRoleRow {
   user_id: string;
   role: string;
   is_active: boolean;
-  profiles: {
-    id: string;
-    email: string | null;
-    display_name: string | null;
-    status: string;
-    created_at: string | null;
-  } | null;
+}
+
+interface ProfileRow {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  status: string;
+  created_at: string | null;
 }
 
 export async function GET(request: Request) {
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     const { centerId, centerName, supabase } = context;
     const { data, error } = await supabase
       .from("user_roles")
-      .select("user_id,role,is_active,profiles(id,email,display_name,status,created_at)")
+      .select("user_id,role,is_active")
       .eq("center_id", centerId);
 
     if (error) {
@@ -54,10 +55,24 @@ export async function GET(request: Request) {
 
     const rows = (data ?? []) as unknown as UserRoleRow[];
     const userIds = [...new Set(rows.map((row) => row.user_id))];
+    const { data: profilesData, error: profilesError } = userIds.length
+      ? await supabase
+          .from("profiles")
+          .select("id,email,display_name,status,created_at")
+          .in("id", userIds)
+      : { data: [], error: null };
+
+    if (profilesError) {
+      return NextResponse.json({ error: "Error al cargar perfiles" }, { status: 500 });
+    }
+
     const { data: teachersData } = userIds.length
       ? await supabase.from("teachers").select("id,profile_id").in("profile_id", userIds)
       : { data: [] };
 
+    const profileById = new Map(
+      ((profilesData ?? []) as ProfileRow[]).map((profile) => [profile.id, profile])
+    );
     const teacherByProfileId = new Map(
       (teachersData ?? []).map((teacher) => [teacher.profile_id as string, teacher.id as string])
     );
@@ -77,7 +92,7 @@ export async function GET(request: Request) {
     >();
 
     for (const row of rows) {
-      const profile = row.profiles;
+      const profile = profileById.get(row.user_id);
       if (!profile) continue;
 
       const existing =
