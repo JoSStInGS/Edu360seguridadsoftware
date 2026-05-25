@@ -8,12 +8,44 @@ import { GoogleButton } from '@/app/auth/components/SocialButtons'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 import { SearchableSelect } from '@/app/components/SearchableSelect'
-import { registerWithEmail, signInWithGoogle, isMepEmail, logout } from '@/app/auth/services/auth'
+import { registerWithEmail, signInWithGoogle, isMepEmail, logout, getUserRole } from '@/app/auth/services/auth'
 
 type RegistrationRole = 'admin' | 'professor' | 'parent'
+type RegisterFieldErrors = {
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+}
 
 const supabase = createClient()
 const PENDING_REGISTRATION_KEY = 'edu360_pending_registration'
+const passwordMessage = "Usa al menos 9 caracteres, una mayúscula, una minúscula y un número."
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/
+
+function validateRegisterFields(email: string, password: string, confirmPassword: string) {
+  const errors: RegisterFieldErrors = {}
+  const normalizedEmail = email.trim()
+
+  if (!normalizedEmail) {
+    errors.email = "Ingresa tu correo electrónico."
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    errors.email = "Ingresa un correo electrónico válido."
+  }
+
+  if (!password) {
+    errors.password = "Ingresa una contraseña."
+  } else if (!passwordRegex.test(password)) {
+    errors.password = passwordMessage
+  }
+
+  if (!confirmPassword) {
+    errors.confirmPassword = "Confirma tu contraseña."
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = "Las contraseñas no coinciden."
+  }
+
+  return errors
+}
 
 export default function CompleteProfilePage() {
   const router = useRouter()
@@ -35,6 +67,7 @@ export default function CompleteProfilePage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [registerLoading, setRegisterLoading] = useState(false)
+  const [registerFieldErrors, setRegisterFieldErrors] = useState<RegisterFieldErrors>({})
 
   // Searchable Select State
   const [selectedCenterId, setSelectedCenterId] = useState('')
@@ -84,7 +117,13 @@ export default function CompleteProfilePage() {
     if (!user || authLoading) return
 
     const pending = localStorage.getItem(PENDING_REGISTRATION_KEY)
-    if (!pending) return
+    if (!pending) {
+      void (async () => {
+        const role = await getUserRole(user.id)
+        if (role) router.replace('/welcome')
+      })()
+      return
+    }
 
     try {
       const data = JSON.parse(pending) as {
@@ -205,18 +244,15 @@ export default function CompleteProfilePage() {
   }
 
   const handleEmailRegister = async () => {
-    if (!email || !password || !confirmPassword) {
-      setValidationError("Por favor completa todos los campos")
-      return
-    }
+    const errors = validateRegisterFields(email, password, confirmPassword)
+    setRegisterFieldErrors(errors)
+    setValidationError(null)
 
-    if (password !== confirmPassword) {
-      setValidationError("Las contraseñas no coinciden")
+    if (Object.keys(errors).length > 0) {
       return
     }
 
     setRegisterLoading(true)
-    setValidationError(null)
 
     try {
       await registerWithEmail(email, password)
@@ -244,7 +280,6 @@ export default function CompleteProfilePage() {
         router.push('/welcome')
       }
     } catch (error) {
-      console.error("Registration error:", error)
       const message = error instanceof Error ? error.message : "Error al registrarse"
       setValidationError(message)
     } finally {
@@ -265,8 +300,8 @@ export default function CompleteProfilePage() {
       }))
       await signInWithGoogle()
     } catch (error) {
-      console.error("Social registration error:", error)
-      setValidationError("Error al registrarse con Google")
+      const message = error instanceof Error ? error.message : "Error al registrarse con Google"
+      setValidationError(message)
     } finally {
       setRegisterLoading(false)
     }
@@ -295,6 +330,12 @@ export default function CompleteProfilePage() {
                   <h1 className="text-3xl font-bold text-[var(--text-color)] pb-2 pt-2">¡Código validado!</h1>
                   <p className="text-[var(--text-color)] opacity-70 text-base font-normal pb-6">Listo para crear tu cuenta. Elige tu método de registro preferido.</p>
                 </div>
+                {validationError && (
+                  <div className="mb-4 flex w-full items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                    <span className="material-symbols-outlined mt-0.5 text-red-500">error</span>
+                    <p className="text-sm text-red-700 dark:text-red-300">{validationError}</p>
+                  </div>
+                )}
                 <div className="w-full flex flex-col gap-4">
                   <div className="flex flex-col gap-4">
                     <div>
@@ -304,8 +345,15 @@ export default function CompleteProfilePage() {
                         placeholder="Correo Electrónico"
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        error={Boolean(registerFieldErrors.email)}
+                        onChange={(e) => {
+                          setEmail(e.target.value)
+                          setRegisterFieldErrors((prev) => ({ ...prev, email: undefined }))
+                        }}
                       />
+                      {registerFieldErrors.email && (
+                        <p className="mt-1 text-xs font-medium text-red-500">{registerFieldErrors.email}</p>
+                      )}
                     </div>
                     <div>
                       <label className="sr-only" htmlFor="password">Contraseña</label>
@@ -314,8 +362,15 @@ export default function CompleteProfilePage() {
                         placeholder="Contraseña"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        error={Boolean(registerFieldErrors.password)}
+                        onChange={(e) => {
+                          setPassword(e.target.value)
+                          setRegisterFieldErrors((prev) => ({ ...prev, password: undefined }))
+                        }}
                       />
+                      <p className={`mt-1 text-xs ${registerFieldErrors.password ? "font-medium text-red-500" : "text-zinc-500 dark:text-zinc-400"}`}>
+                        {registerFieldErrors.password ?? passwordMessage}
+                      </p>
                     </div>
                     <div>
                       <label className="sr-only" htmlFor="confirm-password">Confirmar Contraseña</label>
@@ -324,8 +379,15 @@ export default function CompleteProfilePage() {
                         placeholder="Confirmar Contraseña"
                         type="password"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        error={Boolean(registerFieldErrors.confirmPassword)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value)
+                          setRegisterFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }))
+                        }}
                       />
+                      {registerFieldErrors.confirmPassword && (
+                        <p className="mt-1 text-xs font-medium text-red-500">{registerFieldErrors.confirmPassword}</p>
+                      )}
                     </div>
                     <Button
                       className="mt-2"

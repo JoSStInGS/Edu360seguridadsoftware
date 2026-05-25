@@ -69,8 +69,35 @@ export async function registerWithEmail(email: string, password: string): Promis
     },
   });
 
-  if (error) throw error;
-  if (!data.user) throw new Error("No se pudo crear la cuenta.");
+  if (error) {
+    const message = error.message.toLowerCase();
+
+    if (message.includes("user already registered") || message.includes("already registered")) {
+      throw new Error("Ya existe una cuenta con este correo. Inicia sesión o usa recuperación de contraseña.");
+    }
+
+    if (message.includes("password")) {
+      throw new Error("La contraseña no cumple con los requisitos de seguridad.");
+    }
+
+    if (message.includes("email")) {
+      throw new Error("El correo no es válido o no puede usarse para crear la cuenta.");
+    }
+
+    if (message.includes("rate limit") || message.includes("too many")) {
+      throw new Error("Se hicieron demasiados intentos. Espera unos minutos e inténtalo de nuevo.");
+    }
+
+    throw new Error(`Supabase no pudo crear la cuenta: ${error.message}`);
+  }
+
+  if (data.user?.identities?.length === 0) {
+    throw new Error("Ya existe una cuenta con este correo. Inicia sesión o usa recuperación de contraseña.");
+  }
+
+  if (!data.user) {
+    throw new Error("Supabase no devolvió el usuario creado. Verifica si el correo ya existe o si la confirmación por email quedó pendiente.");
+  }
 
   return withLegacyUserAliases(data.user);
 }

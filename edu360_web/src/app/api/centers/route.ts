@@ -1,20 +1,25 @@
 import { NextResponse } from "next/server";
-import { getAdminFirestore } from "@/app/lib/firebaseAdmin";
+import { createAdminClient } from "@/app/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 export async function GET() {
     try {
-        const db = getAdminFirestore();
-        const centersRef = db.collection("centers");
-        const snapshot = await centersRef.get();
+        const supabase = createAdminClient();
+        const { data, error } = await supabase
+            .from("centers")
+            .select("id,name")
+            .eq("status", "active")
+            .order("name");
 
-        const centers = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            name: doc.data().name
-        }));
+        if (error) {
+            return NextResponse.json(
+                { error: "Error fetching centers" },
+                { status: 500 }
+            );
+        }
 
-        return NextResponse.json({ centers });
+        return NextResponse.json({ centers: data ?? [] });
     } catch {
         return NextResponse.json(
             { error: "Error fetching centers" },
