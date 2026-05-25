@@ -32,36 +32,53 @@ export async function POST(request: Request) {
     }
 
     const supabase = createAdminClient();
-    const { data, error } = await supabase.rpc("validate_activation_code", {
-      p_center_id: center,
-      p_code_hash: hashCode(code.trim()),
-    });
+    const { data: activationCode, error } = await supabase
+      .from("activation_codes")
+      .select("id,purpose,role,academic_period_id,metadata,status,expires_at")
+      .eq("center_id", center)
+      .eq("code_hash", hashCode(code.trim()))
+      .maybeSingle();
 
-    if (error || !data?.length) {
-      return NextResponse.json({ valid: false, message: "Codigo invalido" }, { status: 200 });
+    if (error || !activationCode) {
+      return NextResponse.json({ valid: false, message: "Código inválido" }, { status: 200 });
     }
 
-    const activationCode = data[0] as {
+    const codeRow = activationCode as {
+      id: string;
       purpose: string;
       role: string | null;
       academic_period_id: string | null;
       metadata: { teacher_id?: string | null } | null;
-      student_ids: string[] | null;
+      status: string;
+      expires_at: string;
     };
 
-    if (activationCode.role !== expectedRole) {
+    if (codeRow.status === "consumed") {
+      return NextResponse.json({ valid: false, message: "Este código ya fue utilizado" }, { status: 200 });
+    }
+
+    if (codeRow.status !== "active" || new Date(codeRow.expires_at) <= new Date()) {
+      return NextResponse.json({ valid: false, message: "Este código expiró o fue revocado" }, { status: 200 });
+    }
+
+    if (codeRow.role !== expectedRole) {
       return NextResponse.json(
-        { valid: false, message: "El rol no coincide con el codigo proporcionado" },
+        { valid: false, message: "El rol no coincide con el código proporcionado" },
         { status: 200 }
       );
     }
 
+    const { data: studentLinks } = await supabase
+      .from("activation_code_students")
+      .select("student_id")
+      .eq("activation_code_id", codeRow.id);
+
     return NextResponse.json({
       valid: true,
-      message: "Codigo valido",
-      profesorId: activationCode.metadata?.teacher_id ?? null,
-      periodId: activationCode.academic_period_id,
-      studentCedulas: activationCode.student_ids ?? null,
+      message: "Código válido",
+      profesorId: codeRow.metadata?.teacher_id ?? null,
+      periodId: codeRow.academic_period_id,
+      studentIds: (studentLinks ?? []).map((row) => row.student_id),
     });
   } catch (error) {
     console.error("Error validating code:", error);

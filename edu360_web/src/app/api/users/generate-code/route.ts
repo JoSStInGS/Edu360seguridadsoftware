@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
     const purpose = role === "parent" ? "guardian_link" : "registration";
 
     const { data: activationCode, error: insertError } = await supabase

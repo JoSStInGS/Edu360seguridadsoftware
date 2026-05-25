@@ -3,21 +3,24 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/auth/hooks/useAuth'
-import { db } from '@/app/lib/firebase'
-import { doc, setDoc } from 'firebase/firestore'
+import { createClient } from '@/app/lib/supabase/client'
 import { GoogleButton } from '@/app/auth/components/SocialButtons'
 import { Input } from '@/app/components/Input'
 import { Button } from '@/app/components/Button'
 import { SearchableSelect } from '@/app/components/SearchableSelect'
 import { registerWithEmail, signInWithGoogle, isMepEmail, logout } from '@/app/auth/services/auth'
 
+type RegistrationRole = 'admin' | 'professor' | 'parent'
+
+const supabase = createClient()
+const PENDING_REGISTRATION_KEY = 'edu360_pending_registration'
+
 export default function CompleteProfilePage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [role, setRole] = useState<'admin' | 'professor' | null>(null)
+  const [role, setRole] = useState<RegistrationRole | null>(null)
   const [activationCode, setActivationCode] = useState('')
   const [step, setStep] = useState(1)
-  const [profesorId, setProfesorId] = useState<string | null>(null)
 
   // Error States
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -55,7 +58,83 @@ export default function CompleteProfilePage() {
     fetchCenters()
   }, [])
 
+  const completeRegistration = async (token?: string) => {
+    const response = await fetch('/api/registration/complete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        center: selectedCenterId,
+        code: activationCode,
+        role,
+        mepEmail: email && role ? isMepEmail(email, [role]) ? email.trim().toLowerCase() : null : null,
+      }),
+    })
 
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'No se pudo completar el registro')
+    }
+    localStorage.removeItem(PENDING_REGISTRATION_KEY)
+  }
+
+  useEffect(() => {
+    if (!user || authLoading) return
+
+    const pending = localStorage.getItem(PENDING_REGISTRATION_KEY)
+    if (!pending) return
+
+    try {
+      const data = JSON.parse(pending) as {
+        role: RegistrationRole;
+        activationCode: string;
+        selectedCenterId: string;
+        selectedCenterName: string;
+        email: string;
+      }
+
+      setRole(data.role)
+      setActivationCode(data.activationCode)
+      setSelectedCenterId(data.selectedCenterId)
+      setSelectedCenterName(data.selectedCenterName)
+      setEmail(data.email)
+
+      void (async () => {
+        setRegisterLoading(true)
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          await fetch('/api/registration/complete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(sessionData.session?.access_token
+                ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+                : {}),
+            },
+            body: JSON.stringify({
+              center: data.selectedCenterId,
+              code: data.activationCode,
+              role: data.role,
+              mepEmail: isMepEmail(data.email, [data.role]) ? data.email.trim().toLowerCase() : null,
+            }),
+          }).then(async (response) => {
+            const payload = await response.json()
+            if (!response.ok) throw new Error(payload.error ?? 'No se pudo completar el registro')
+          })
+          localStorage.removeItem(PENDING_REGISTRATION_KEY)
+          router.replace('/welcome')
+        } catch (error) {
+          setValidationError(error instanceof Error ? error.message : 'No se pudo completar el registro')
+        } finally {
+          setRegisterLoading(false)
+        }
+      })()
+    } catch {
+      localStorage.removeItem(PENDING_REGISTRATION_KEY)
+    }
+  }, [authLoading, router, user])
 
   const [isValidating, setIsValidating] = useState(false)
 
@@ -101,39 +180,21 @@ export default function CompleteProfilePage() {
       const data = await response.json()
 
       if (data.valid) {
-        // Save profesorId if present in the code
-        if (data.profesorId) {
-          setProfesorId(data.profesorId)
-        }
-
         // If user is already logged in (Complete Profile flow), update their profile directly
         if (user) {
           try {
-            const profileData: Record<string, unknown> = {
-              roles: [role],
-              centerId: selectedCenterId, // Save ID
-              centerName: selectedCenterName, // Save Name for display convenience
-              updatedAt: new Date().toISOString(),
-            }
-            if (data.profesorId) {
-              profileData.profesorId = data.profesorId
-            }
-
-            await setDoc(doc(db, "users", user.uid), profileData, { merge: true })
-
+            const { data: sessionData } = await supabase.auth.getSession()
+            await completeRegistration(sessionData.session?.access_token)
             router.push('/welcome')
           } catch (error) {
             console.error("Error updating profile:", error)
-            setValidationError("Error al actualizar el perfil. Por favor intenta de nuevo.")
+            setValidationError(error instanceof Error ? error.message : "Error al actualizar el perfil. Por favor intenta de nuevo.")
           }
         } else {
-          // Normal registration flow: Proceed to step 2
-          console.log("Validation successful")
           setStep(2)
         }
       } else {
-        // Generic error for security
-        setValidationError("Invalid")
+        setValidationError(data.message ?? "El código no es válido")
       }
     } catch (error) {
       console.error("Validation error:", error)
@@ -158,28 +219,26 @@ export default function CompleteProfilePage() {
     setValidationError(null)
 
     try {
-      const u = await registerWithEmail(email, password)
+      await registerWithEmail(email, password)
 
-      // Update profile with role and center
-      const roles = [role!]
-      const profileData: Record<string, unknown> = {
-        roles,
-        role: role,
-        centerId: selectedCenterId,
-        centerName: selectedCenterName,
-        updatedAt: new Date().toISOString(),
+      localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify({
+        role,
+        activationCode,
+        selectedCenterId,
+        selectedCenterName,
+        email: email.trim().toLowerCase(),
+      }))
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData.session?.access_token) {
+        setValidationError("Cuenta creada. Revisa tu correo para verificarla y luego inicia sesión para finalizar la vinculación.")
+        return
       }
-      if (profesorId) {
-        profileData.profesorId = profesorId
-      }
-      // If the registration email is a MEP email, save it automatically
-      if (isMepEmail(email, roles as ('admin' | 'professor' | 'parent')[])) {
-        profileData.mepEmail = email.toLowerCase()
-      }
-      await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
+
+      await completeRegistration(sessionData.session.access_token)
 
       // If MEP email not auto-saved, redirect to capture page
-      if (!profileData.mepEmail) {
+      if (!isMepEmail(email, [role!])) {
         router.push('/auth/mep-email')
       } else {
         router.push('/welcome')
@@ -197,25 +256,14 @@ export default function CompleteProfilePage() {
     setRegisterLoading(true)
     setValidationError(null)
     try {
-      const u = await signInWithGoogle()
-
-      if (u) {
-        // Update profile with role and center
-        const profileData: Record<string, unknown> = {
-          roles: [role],
-          role: role,
-          centerId: selectedCenterId,
-          centerName: selectedCenterName,
-          updatedAt: new Date().toISOString(),
-        }
-        if (profesorId) {
-          profileData.profesorId = profesorId
-        }
-        await setDoc(doc(db, "users", u.uid), profileData, { merge: true })
-
-        // Google accounts are never MEP emails, always redirect to capture page
-        router.push('/auth/mep-email')
-      }
+      localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify({
+        role,
+        activationCode,
+        selectedCenterId,
+        selectedCenterName,
+        email,
+      }))
+      await signInWithGoogle()
     } catch (error) {
       console.error("Social registration error:", error)
       setValidationError("Error al registrarse con Google")
@@ -328,7 +376,7 @@ export default function CompleteProfilePage() {
             <span className="material-symbols-outlined text-red-500 mt-0.5">error</span>
             <div>
               <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">Error de validación</h3>
-              <p className="text-sm text-red-700 dark:text-red-300">La información proporcionada no es válida. Por favor, revisa tus datos.</p>
+              <p className="text-sm text-red-700 dark:text-red-300">{validationError}</p>
             </div>
           </div>
         )}
@@ -338,7 +386,7 @@ export default function CompleteProfilePage() {
           {/* Role Selection */}
           <div>
             <h2 className="text-[var(--text-color)] text-lg font-bold mb-3">Selecciona tu rol</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => {
                   setRole('admin')
@@ -382,6 +430,29 @@ export default function CompleteProfilePage() {
                 </span>
                 <p className={`text-sm font-bold ${role === 'professor' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
                   Profesor
+                </p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setRole('parent')
+                  setFieldErrors(prev => ({ ...prev, role: false }))
+                }}
+                className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200 group ${role === 'parent'
+                  ? 'border-[var(--button-bg)] bg-[var(--button-bg)]/10 ring-2 ring-[var(--button-bg)]/20'
+                  : fieldErrors.role
+                    ? 'border-red-500 bg-red-50/10'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-[var(--button-bg)] focus:border-[var(--button-bg)]'
+                  }`}
+              >
+                <span
+                  className={`material-symbols-outlined ${role === 'parent' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-zinc-500 group-hover:text-[var(--button-bg)]'}`}
+                  style={{ fontSize: '32px' }}
+                >
+                  family_restroom
+                </span>
+                <p className={`text-sm font-bold ${role === 'parent' ? 'text-[var(--button-bg)]' : fieldErrors.role ? 'text-red-500' : 'text-[var(--text-color)] group-hover:text-[var(--button-bg)]'}`}>
+                  Encargado
                 </p>
               </button>
             </div>
