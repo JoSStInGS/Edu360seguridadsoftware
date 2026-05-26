@@ -52,7 +52,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
   return withLegacyUserAliases(data.user);
 }
 
-export async function registerWithEmail(email: string, password: string): Promise<AuthServiceUser> {
+export async function registerWithEmail(email: string, password: string): Promise<AuthServiceUser | null> {
   const normalizedEmail = email.trim().toLowerCase();
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{9,}$/;
   if (!passwordRegex.test(password)) {
@@ -65,7 +65,7 @@ export async function registerWithEmail(email: string, password: string): Promis
     email: normalizedEmail,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/email-confirmed`,
     },
   });
 
@@ -80,7 +80,7 @@ export async function registerWithEmail(email: string, password: string): Promis
       throw new Error("La contraseña no cumple con los requisitos de seguridad.");
     }
 
-    if (message.includes("email")) {
+    if (message.includes("email") && message.includes("not allowed")) {
       throw new Error("El correo no es válido o no puede usarse para crear la cuenta.");
     }
 
@@ -96,10 +96,35 @@ export async function registerWithEmail(email: string, password: string): Promis
   }
 
   if (!data.user) {
-    throw new Error("Supabase no devolvió el usuario creado. Verifica si el correo ya existe o si la confirmación por email quedó pendiente.");
+    return null;
   }
 
   return withLegacyUserAliases(data.user);
+}
+
+export async function resendSignUpConfirmation(email: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Ingresa el correo para reenviar la confirmación.");
+  }
+
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: normalizedEmail,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/email-confirmed`,
+    },
+  });
+
+  if (error) {
+    const message = error.message.toLowerCase();
+
+    if (message.includes("rate limit") || message.includes("too many")) {
+      throw new Error("Se hicieron demasiados intentos. Espera unos minutos antes de reenviar el correo.");
+    }
+
+    throw new Error(`No se pudo reenviar el correo de confirmación: ${error.message}`);
+  }
 }
 
 export async function handleRedirectLoginIfNeeded(): Promise<void> {

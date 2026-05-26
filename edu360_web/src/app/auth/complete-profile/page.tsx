@@ -68,6 +68,7 @@ export default function CompleteProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [registerLoading, setRegisterLoading] = useState(false)
   const [registerFieldErrors, setRegisterFieldErrors] = useState<RegisterFieldErrors>({})
+  const [registrationNotice, setRegistrationNotice] = useState<string | null>(null)
 
   // Searchable Select State
   const [selectedCenterId, setSelectedCenterId] = useState('')
@@ -111,6 +112,24 @@ export default function CompleteProfilePage() {
       throw new Error(data.error ?? 'No se pudo completar el registro')
     }
     localStorage.removeItem(PENDING_REGISTRATION_KEY)
+  }
+
+  const createRegistrationIntent = async () => {
+    const response = await fetch('/api/registration/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        center: selectedCenterId,
+        code: activationCode,
+        role,
+        email: email.trim().toLowerCase(),
+      }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'No se pudo preparar el registro')
+    }
   }
 
   useEffect(() => {
@@ -247,6 +266,7 @@ export default function CompleteProfilePage() {
     const errors = validateRegisterFields(email, password, confirmPassword)
     setRegisterFieldErrors(errors)
     setValidationError(null)
+    setRegistrationNotice(null)
 
     if (Object.keys(errors).length > 0) {
       return
@@ -255,6 +275,7 @@ export default function CompleteProfilePage() {
     setRegisterLoading(true)
 
     try {
+      await createRegistrationIntent()
       await registerWithEmail(email, password)
 
       localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify({
@@ -267,7 +288,7 @@ export default function CompleteProfilePage() {
 
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.access_token) {
-        setValidationError("Cuenta creada. Revisa tu correo para verificarla y luego inicia sesión para finalizar la vinculación.")
+        setRegistrationNotice("Cuenta creada. Revisa tu correo para confirmarla. Después verás una pantalla de confirmación y deberás iniciar sesión nuevamente.")
         return
       }
 
@@ -334,6 +355,12 @@ export default function CompleteProfilePage() {
                   <div className="mb-4 flex w-full items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
                     <span className="material-symbols-outlined mt-0.5 text-red-500">error</span>
                     <p className="text-sm text-red-700 dark:text-red-300">{validationError}</p>
+                  </div>
+                )}
+                {registrationNotice && (
+                  <div className="mb-4 flex w-full items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+                    <span className="material-symbols-outlined mt-0.5 text-green-600">check_circle</span>
+                    <p className="text-sm text-green-700 dark:text-green-300">{registrationNotice}</p>
                   </div>
                 )}
                 <div className="w-full flex flex-col gap-4">
