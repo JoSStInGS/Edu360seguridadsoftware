@@ -7,6 +7,18 @@ import { recalculateStatus } from "@/types/justification";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function sanitizeProfessorComment(comment: string | undefined) {
+    if (!comment) return undefined;
+
+    const sanitized = comment
+        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 500);
+
+    return sanitized || undefined;
+}
+
 /**
  * PATCH /api/justifications/{id}
  * Profesor aprueba o rechaza su decisión para una clase específica.
@@ -99,6 +111,20 @@ export async function PATCH(
 
         const justData = { id: justDoc.id, ...justDoc.data() } as AbsenceJustification;
 
+        const targetDecision = justData.decisions.find(
+            (d) => d.scheduleId === scheduleId && d.profesorId === teacherDocId
+        );
+
+        if (!targetDecision) {
+            return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+        }
+
+        if (targetDecision.status !== 'pending') {
+            return NextResponse.json({ error: "La decisión ya fue revisada" }, { status: 409 });
+        }
+
+        const profesorComment = sanitizeProfessorComment(comment);
+
         // Find and update the matching decision
         const now = new Date().toISOString();
         const updatedDecisions: JustificationDecision[] = justData.decisions.map((d) => {
@@ -106,7 +132,7 @@ export async function PATCH(
                 return {
                     ...d,
                     status: decision,
-                    profesorComment: comment?.trim() || undefined,
+                    profesorComment,
                     reviewedAt: now,
                 };
             }
