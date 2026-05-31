@@ -45,6 +45,53 @@ async function verifyUser(request: Request) {
     return { uid, centerId, roles, userData, db };
 }
 
+async function resolveAuthenticatedProfessor(
+    db: FirebaseFirestore.Firestore,
+    centerId: string,
+    periodId: string,
+    userData: Record<string, unknown>,
+) {
+    const profesorId = typeof userData.profesorId === "string" ? userData.profesorId : undefined;
+    const email = typeof userData.email === "string" ? userData.email : undefined;
+
+    if (profesorId) {
+        const profesorDoc = await db
+            .collection("centers").doc(centerId)
+            .collection("periods").doc(periodId)
+            .collection("profesores").doc(profesorId)
+            .get();
+
+        return {
+            profesorId,
+            profesorNombre: profesorDoc.exists
+                ? (profesorDoc.data()?.nombre as string | undefined) || ""
+                : "",
+        };
+    }
+
+    if (!email) {
+        return null;
+    }
+
+    const profesorSnap = await db
+        .collection("centers").doc(centerId)
+        .collection("periods").doc(periodId)
+        .collection("profesores")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+
+    if (profesorSnap.empty) {
+        return null;
+    }
+
+    const profesorDoc = profesorSnap.docs[0];
+    return {
+        profesorId: profesorDoc.id,
+        profesorNombre: (profesorDoc.data().nombre as string | undefined) || "",
+    };
+}
+
 // POST: Create comunicado
 export async function POST(request: Request) {
     try {
@@ -53,17 +100,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: result.error }, { status: result.status });
         }
 
-        const { centerId, db } = result;
+        const { centerId, db, userData } = result;
         const body = await request.json();
         const { periodId, profesorId, profesorNombre, studentCedula, studentName, grupoId, grupoNombre, subject, message } = body;
 
-        if (!periodId || !profesorId || !studentCedula || !subject?.trim() || !message?.trim()) {
+        if (!periodId || !studentCedula || !subject?.trim() || !message?.trim()) {
             return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
         }
 
+        const authenticatedProfessor = await resolveAuthenticatedProfessor(db, centerId, periodId, userData);
+        if (!authenticatedProfessor) {
+            return NextResponse.json({ error: "Profesor no encontrado" }, { status: 404 });
+        }
+
+        if (profesorId && profesorId !== authenticatedProfessor.profesorId) {
+            return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+        }
+
         const comunicadoData = {
-            profesorId,
-            profesorNombre: profesorNombre || "",
+            profesorId: authenticatedProfessor.profesorId,
+            profesorNombre: authenticatedProfessor.profesorNombre || profesorNombre || "",
             studentCedula,
             studentName: studentName || "",
             grupoId: grupoId || "",
@@ -95,20 +151,29 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: result.error }, { status: result.status });
         }
 
-        const { centerId, db } = result;
+        const { centerId, db, userData } = result;
         const { searchParams } = new URL(request.url);
         const periodId = searchParams.get("period");
         const profesorId = searchParams.get("profesorId");
 
-        if (!periodId || !profesorId) {
-            return NextResponse.json({ error: "period y profesorId son requeridos" }, { status: 400 });
+        if (!periodId) {
+            return NextResponse.json({ error: "period es requerido" }, { status: 400 });
+        }
+
+        const authenticatedProfessor = await resolveAuthenticatedProfessor(db, centerId, periodId, userData);
+        if (!authenticatedProfessor) {
+            return NextResponse.json({ error: "Profesor no encontrado" }, { status: 404 });
+        }
+
+        if (profesorId && profesorId !== authenticatedProfessor.profesorId) {
+            return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
         }
 
         const snapshot = await db
             .collection("centers").doc(centerId)
             .collection("periods").doc(periodId)
             .collection("comunicados")
-            .where("profesorId", "==", profesorId)
+            .where("profesorId", "==", authenticatedProfessor.profesorId)
             .orderBy("createdAt", "desc")
             .limit(50)
             .get();
