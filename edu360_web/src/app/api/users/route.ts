@@ -145,14 +145,74 @@ export async function PATCH(request: Request) {
 
         const validRoles = ["admin", "professor", "parent"];
         if (Array.isArray(roles) && roles.length > 0 && roles.every((r: string) => validRoles.includes(r))) {
+            
+            // CORRECCIÓN 1: Verificar que no se quita el último admin activo del centro
+            const currentRoles = normalizeRolesServer(targetData);
+            const isRemovingAdmin = currentRoles.includes("admin") && !roles.includes("admin");
+
+            if (isRemovingAdmin) {
+                const adminsSnap = await db
+                    .collection("users")
+                    .where("centerId", "==", centerId)
+                    .where("status", "==", "active")
+                    .get();
+
+                const activeAdmins = adminsSnap.docs.filter((doc) => {
+                    const data = doc.data();
+                    const docRoles = normalizeRolesServer(data);
+                    return docRoles.includes("admin") && doc.id !== targetUid;
+                });
+
+                if (activeAdmins.length === 0) {
+                    return NextResponse.json(
+                        { error: "No se puede quitar el rol admin al último administrador activo del centro." },
+                        { status: 400 }
+                    );
+                }
+            }
+
             updateData.roles = roles;
         }
 
         if (status && ["active", "inactive"].includes(status)) {
+            // CORRECCIÓN 2: Verificar que no se desactiva el último admin activo
+            const currentRoles = normalizeRolesServer(targetData);
+            const isDeactivatingAdmin = currentRoles.includes("admin") && status === "inactive";
+
+            if (isDeactivatingAdmin) {
+                const adminsSnap = await db
+                    .collection("users")
+                    .where("centerId", "==", centerId)
+                    .where("status", "==", "active")
+                    .get();
+
+                const activeAdmins = adminsSnap.docs.filter((doc) => {
+                    const data = doc.data();
+                    const docRoles = normalizeRolesServer(data);
+                    return docRoles.includes("admin") && doc.id !== targetUid;
+                });
+
+                if (activeAdmins.length === 0) {
+                    return NextResponse.json(
+                        { error: "No se puede desactivar al último administrador activo del centro." },
+                        { status: 400 }
+                    );
+                }
+            }
+
             updateData.status = status;
         }
 
         await db.collection("users").doc(targetUid).update(updateData);
+
+        // CORRECCIÓN 3: Registrar auditoría del cambio
+        await db.collection("centers").doc(centerId).collection("audit_logs").add({
+            action: "user_updated",
+            targetUid,
+            changes: { roles, status },
+            performedBy: result.uid,
+            timestamp: new Date().toISOString(),
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {
