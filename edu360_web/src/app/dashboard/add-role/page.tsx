@@ -70,9 +70,11 @@ export default function AddRolePage() {
             setCurrentRoles(data.roles || [...currentRoles, data.newRole]);
             setCode("");
         } catch (err) {
-            console.error("Error:", err);
+            // CORRECCIÓN 1: No loggear detalles del error en consola
             setError("Error al procesar la solicitud");
         } finally {
+            // CORRECCIÓN 2: Limpiar el código siempre, exitoso o no
+            setCode("");
             setLoading(false);
         }
     };
