@@ -31,10 +31,56 @@ export async function GET(request: Request) {
         const db = getAdminFirestore();
 
         const userDoc = await db.collection("users").doc(uid).get();
-        const centerId = userDoc.data()?.centerId;
+        const userData = userDoc.data();
+        const centerId = userData?.centerId;
+        const userRole = userData?.role;
 
         if (!centerId) {
             return NextResponse.json({ error: "No center found for user" }, { status: 400 });
+        }
+
+        // CORRECCIÓN: Si el usuario es profesor, obtener su profesorId real desde Firestore
+        // y bloquear cualquier intento de consultar el teacherId de otro profesor
+        if (userRole === "professor") {
+            const profesorSnapshot = await db
+                .collection(`centers/${centerId}/periods/${period}/profesores`)
+                .where("uid", "==", uid)
+                .limit(1)
+                .get();
+
+            if (profesorSnapshot.empty) {
+                return NextResponse.json(
+                    { error: "No se encontró el perfil de profesor para este usuario." },
+                    { status: 403 }
+                );
+            }
+
+            const realProfesorId = profesorSnapshot.docs[0].id;
+
+            // Si intentó consultar un teacherId ajeno, bloquearlo
+            if (teacherId && teacherId !== realProfesorId) {
+                return NextResponse.json(
+                    { error: "Acceso denegado. No puede consultar horarios de otro profesor." },
+                    { status: 403 }
+                );
+            }
+
+            // Si consultó por groupId, verificar que el profesor tiene clases en ese grupo
+            if (groupId && !teacherId) {
+                const grupoSnapshot = await db
+                    .collection(`centers/${centerId}/periods/${period}/horarios`)
+                    .where("grupoId", "==", groupId)
+                    .where("profesorId", "==", realProfesorId)
+                    .limit(1)
+                    .get();
+
+                if (grupoSnapshot.empty) {
+                    return NextResponse.json(
+                        { error: "Acceso denegado. No tiene clases asignadas en este grupo." },
+                        { status: 403 }
+                    );
+                }
+            }
         }
 
         const periodRef = db.doc(`centers/${centerId}/periods/${period}`);
