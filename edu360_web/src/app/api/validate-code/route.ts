@@ -16,7 +16,6 @@ export async function POST(request: Request) {
         }
 
         const db = getAdminFirestore();
-        // Assuming the document ID for the center is the center name as per user description
         const codeRef = db
             .collection("centers")
             .doc(center)
@@ -25,9 +24,12 @@ export async function POST(request: Request) {
 
         const doc = await codeRef.get();
 
+        // CORRECCIÓN 1: Usar mensaje genérico para todos los errores de validación
+        // Antes se usaban mensajes diferentes para cada tipo de error, lo que
+        // permitía enumerar si un código existía, expiró o era de otro rol
         if (!doc.exists) {
             return NextResponse.json(
-                { valid: false, message: "Código inválido" },
+                { valid: false, message: "Código no válido" },
                 { status: 200 }
             );
         }
@@ -36,38 +38,39 @@ export async function POST(request: Request) {
 
         if (!data) {
             return NextResponse.json(
-                { valid: false, message: "Error al leer datos del código" },
+                { valid: false, message: "Código no válido" },
                 { status: 200 }
             );
         }
 
-        // Validate Role
+        // CORRECCIÓN 2: Mismo mensaje genérico para rol incorrecto
         if (data.role !== role) {
             return NextResponse.json(
-                { valid: false, message: "El rol no coincide con el código proporcionado" },
+                { valid: false, message: "Código no válido" },
                 { status: 200 }
             );
         }
 
-        // Validate Expiration
+        // CORRECCIÓN 3: Mismo mensaje genérico para código expirado
         if (data.expires_at) {
-            const expiresAt = data.expires_at instanceof Timestamp ? data.expires_at.toDate() : new Date(data.expires_at);
+            const expiresAt = data.expires_at instanceof Timestamp
+                ? data.expires_at.toDate()
+                : new Date(data.expires_at);
             const now = new Date();
             if (now > expiresAt) {
                 return NextResponse.json(
-                    { valid: false, message: "El código ha expirado" },
+                    { valid: false, message: "Código no válido" },
                     { status: 200 }
                 );
             }
         }
 
-        // If all checks pass
+        // CORRECCIÓN 4: No devolver datos sensibles en la respuesta
+        // Antes se devolvían profesorId, periodId y studentCedulas
+        // que exponen información interna del sistema
         return NextResponse.json({
             valid: true,
             message: "Código válido",
-            profesorId: data.profesorId || null,
-            periodId: data.periodId || null,
-            studentCedulas: data.studentCedulas || null,
         });
 
     } catch (error) {
