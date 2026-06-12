@@ -148,6 +148,18 @@ async function parseCsvFile(file: File): Promise<ParsedTable | null> {
     row.some((cell) => cell.length > 0)
   );
 
+  // CORRECCIÓN: Detectar celdas con fórmulas peligrosas antes de enviar al servidor
+  for (const row of filteredDataRows) {
+    for (const cell of row) {
+      const trimmed = cell.trim();
+      if (/^[=+\-@]/.test(trimmed)) {
+        throw new Error(
+          "El archivo contiene fórmulas potencialmente peligrosas (celdas que inician con =, +, - o @). Revise el contenido antes de importar."
+        );
+      }
+    }
+  }
+
   return { headerRow, dataRows: filteredDataRows };
 }
 
@@ -252,7 +264,17 @@ export default function ImportStudentsPage() {
         return;
       }
 
-      const parsedTable = await parseCsvFile(file);
+      let parsedTable;
+      try {
+        parsedTable = await parseCsvFile(file);
+      } catch (csvError) {
+        setColumnHeaders([]);
+        setDataRows([]);
+        setImportError(
+          csvError instanceof Error ? csvError.message : "El archivo contiene contenido no permitido."
+        );
+        return;
+      }
 
       if (!parsedTable) {
         setColumnHeaders([]);
